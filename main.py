@@ -13,6 +13,11 @@ load_dotenv(find_dotenv())
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
+bot = Bot(token=TOKEN)
+logger.info("Создан бот")
+dp = Dispatcher()
+logger.info("Создан Диспетчер")
+
 
 async def main():
     logger.add("file.log",
@@ -45,9 +50,14 @@ async def main():
 
             await asyncio.sleep(30)
 
+    @dp.message(Command('soup'))
+    async def send_welcome(message: types.Message):
+        await message.answer("еуеуе")
+        logger.info("тест")
+
     @dp.message(Command('start'))
     async def send_welcome(message: types.Message):
-        await message.answer("Боте запущен! Он будет отправлять анекдоты!")
+        await message.answer("Боте в строю и будет отправлять анекдоты, честна 😈")
         logger.info("Бот запущен!")
 
     task = asyncio.create_task(send_random_joke())
@@ -59,5 +69,10 @@ async def main():
         await bot.session.close()
         logger.info("Бот остановлен!")
 
+
+
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бот выключен')
