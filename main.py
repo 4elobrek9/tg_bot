@@ -7,6 +7,8 @@ from aiogram.filters import Command
 import requests
 from bs4 import BeautifulSoup
 from random import choice
+from group_chat import setup_group_handlers
+from channel import setup_channel_handlers
 
 load_dotenv(find_dotenv())
 TOKEN = os.getenv("TOKEN")
@@ -18,7 +20,7 @@ dp = Dispatcher()
 logger.info("Создан Диспетчер")
 
 # Путь к текстовому файлу
-FILE_PATH = 'C:/Users/aboby/motion-detector/value.txt'
+FILE_PATH = 'C:/Users/motion-detector/value.txt'
 USER_FILE_PATH = 'subscribed_users.txt'  # Путь к файлу для хранения ID пользователей
 last_value = None  # Переменная для хранения последнего значения
 subscribed_users = set()  # Множество для хранения ID пользователей, подписанных на рассылку
