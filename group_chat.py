@@ -4,6 +4,7 @@ import os
 import time
 from datetime import datetime, timedelta
 
+
 # ====================== КОНФИГУРАЦИЯ ======================
 class Config:
     HP_FILE = "hp.txt"
@@ -14,6 +15,7 @@ class Config:
     HEAL_COOLDOWN = 300  # 5 минут в секундах
     HP_RECOVERY_TIME = 600  # 10 минут в секундах
     HP_RECOVERY_AMOUNT = 10
+
 
 # ====================== ДАННЫЕ ДЕЙСТВИЙ ======================
 class Actions:
@@ -40,6 +42,7 @@ class Actions:
             "пощечина": {"hp_change_target": -12, "hp_change_sender": 0},
         }
     }
+
 
 # ====================== МОДЕЛЬ ДАННЫХ ======================
 class UserHPManager:
@@ -100,7 +103,7 @@ class UserHPManager:
         new_hp = max(Config.MIN_HP, min(Config.MAX_HP, current_hp + hp_change))
         self.user_hp[username] = new_hp
         self.save_hp()
-        
+
         # Если HP упал до 0, устанавливаем время восстановления
         if new_hp <= 0 and username not in self.recovery_times:
             self.recovery_times[username] = time.time() + Config.HP_RECOVERY_TIME
@@ -134,9 +137,11 @@ class UserHPManager:
             return max(0, remaining)
         return 0
 
+
 # ====================== ИНИЦИАЛИЗАЦИЯ ======================
 router = Router()
 hp_manager = UserHPManager()
+
 
 # ====================== ХЭНДЛЕРЫ ======================
 class Handlers:
@@ -145,7 +150,7 @@ class Handlers:
         """Проверяет HP пользователя и обрабатывает случай с 0 HP"""
         username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
         current_hp = hp_manager.get_user_hp(username)
-        
+
         if current_hp <= 0:
             recovery_time = hp_manager.get_recovery_time(username)
             if recovery_time > 0:
@@ -172,11 +177,11 @@ class Handlers:
         """Обработчик плача"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         await message.reply(
-            f"{sender_username} залакал. Сейчас будет либо резня, "
+            f"{sender_username} заплакал. Сейчас будет либо резня, "
             f"либо этот чел просто поплачет и успакоется. "
             f"Надеемся что кто-нибудь похилит {sender_username}\n"
             f"(Довели вы клоуны🤡 бедного {sender_username})"
@@ -195,14 +200,14 @@ class Handlers:
         # Проверяем HP отправителя
         if await Handlers.check_zero_hp(message):
             return
-            
+
         if not message.reply_to_message:
             await message.reply("Пожалуйста, ответьте на сообщение, чтобы использовать эту команду.")
             return
 
         target_user = message.reply_to_message.from_user
         sender = message.from_user
-        
+
         # Запрет использования команд на себя
         if target_user.id == sender.id:
             await message.reply("Вы не можете использовать команды на себе!")
@@ -239,10 +244,10 @@ class Handlers:
             action_data = Actions.INTIMATE_ACTIONS["добрые"][command]
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
             hp_manager.update_user_hp(sender_username, action_data["hp_change_sender"])
-            
+
             # Устанавливаем кулдаун для лечащих команд
             hp_manager.set_cooldown(sender_username)
-            
+
             response = (
                 f"{sender_username} {command_past} {target_username} {additional_word}. "
                 f"{target_username} получает +{action_data['hp_change_target']} HP, "
@@ -251,7 +256,7 @@ class Handlers:
         elif command in Actions.INTIMATE_ACTIONS["злые"]:
             action_data = Actions.INTIMATE_ACTIONS["злые"][command]
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
-            
+
             # Проверяем, не упало ли HP цели до 0
             target_hp = hp_manager.get_user_hp(target_username)
             if target_hp <= 0:
@@ -279,11 +284,11 @@ class Handlers:
         """Показывает текущее HP пользователя"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         current_hp = hp_manager.get_user_hp(sender_username)
-        
+
         # Проверяем восстановление HP
         if hp_manager.check_hp_recovery(sender_username):
             current_hp = hp_manager.get_user_hp(sender_username)
@@ -331,11 +336,12 @@ class Handlers:
         """Показывает список всех RP-действий"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         actions_list = "Доступные RP-действия:\n" + \
-                     "\n".join(f"- {action}" for action in Actions.RP_ACTIONS)
-        
+                       "\n".join(f"- {action}" for action in Actions.RP_ACTIONS)
+
         await message.reply(actions_list)
+
 
 # ====================== НАСТРОЙКА ======================
 def setup_group_handlers(dp):
