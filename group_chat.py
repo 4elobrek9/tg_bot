@@ -63,6 +63,17 @@ def update_user_hp(username, hp_change):
     user_hp[username] = new_hp
     save_hp()
 
+# Плакса
+@router.message(
+        F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP]),
+        F.text.lower().contains('залакать')
+)
+async def cry(message: types.Message):
+    sender = message.from_user
+    sender_username = f"@{sender.username}" if sender.username else sender.first_name
+    await message.reply(f"{sender_username} залакал. Сейчас будет либо резня, либо этот чел просто поплачет и успакоется. Надеемся что кто-нибудь почилит {sender_username}\n(Довели вы клоуны🤡 бедного челобрека)")
+
+
 # Обработчик для интимных действий
 @router.message(
     F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP]),
