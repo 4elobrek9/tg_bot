@@ -16,11 +16,11 @@ RP_ACTIONS = [
 INTIMATE_ACTIONS = {
     "добрые": {
         "поцеловать": {"hp_change_target": +10, "hp_change_sender": -5},
-        "обнять": {"hp_change_target": +15, "hp_change_sender": -7},
+        "обнять": {"hp_change_target": +15, "hp_change_sender": -5},
         "погладить": {"hp_change_target": +8, "hp_change_sender": -4},
         "шепнуть": {"hp_change_target": +5, "hp_change_sender": -3},
         "романтический поцелуй": {"hp_change_target": +20, "hp_change_sender": -10},
-        "секс": {"hp_change_target": +30, "hp_change_sender": -15},
+        "секс": {"hp_change_target": +30, "hp_change_sender": +15},  # пенис
     },
     "злые": {
         "ударить": {"hp_change_target": -10, "hp_change_sender": 0},
@@ -30,13 +30,13 @@ INTIMATE_ACTIONS = {
     }
 }
 
-# Словарь для хранения HP пользователей
+# Словарь для хранения HP яиц пользователей
 user_hp = {}
 
-# Файл для сохранения HP
+# Файл для сохранения HP яйца
 HP_FILE = "hp.txt"
 
-# Функция для загрузки HP из файла
+# Функция для загрузки HP яйца из файла
 def load_hp():
     if os.path.exists(HP_FILE):
         with open(HP_FILE, "r", encoding="utf-8") as file:
@@ -44,16 +44,16 @@ def load_hp():
                 username, hp = line.strip().split(": ")
                 user_hp[username] = int(hp)
 
-# Функция для сохранения HP в файл
+# Функция для сохранения HP яйца в файл
 def save_hp():
     with open(HP_FILE, "w", encoding="utf-8") as file:
         for username, hp in user_hp.items():
             file.write(f"{username}: {hp}\n")
 
-# Функция для получения текущего HP пользователя
+# Функция для получения текущего HP яйца пользователя
 def get_user_hp(username):
     if username not in user_hp:
-        user_hp[username] = 100  # Начальное значение HP
+        user_hp[username] = 100  # Начальное значение HP яйца
     return user_hp[username]
 
 # Функция для изменения HP пользователя
@@ -126,7 +126,7 @@ async def interactive_thanks(message: types.Message):
     F.text.lower().contains("люблю")
 )
 async def interactive_love(message: types.Message):
-    await message.reply("Я тоже вас люблю! ❤️")
+    await message.reply("Я тоже вас люблю! ❤️🤡")
 
 def setup_group_handlers(dp):
     dp.include_router(router)
