@@ -8,13 +8,13 @@ import requests
 from bs4 import BeautifulSoup
 from random import choice
 from group_chat import setup_group_handlers
-from channel import setup_channel_handlers
+# from channel import setup_channel_handlers
 
 load_dotenv(find_dotenv())
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+bot = Bot(token=TOKEN)
 logger.info("Создан бот")
 dp = Dispatcher()
 logger.info("Создан Диспетчер")
@@ -26,9 +26,9 @@ async def main():
                backtrace=True,
                diagnose=True)
 
-    setup_private_handlers(dp)
+    # setup_private_handlers(dp)
     setup_group_handlers(dp)
-    setup_channel_handlers(dp, bot)
+    # setup_channel_handlers(dp, bot)
 
     try:
         await dp.start_polling(bot)
