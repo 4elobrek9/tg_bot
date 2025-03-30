@@ -25,7 +25,6 @@ class Actions:
         "издеваться"
     ]
 
-# ========================= ДЕЙСТВИЯ ===========================
     INTIMATE_ACTIONS = {
         "добрые": {
             "поцеловать": {"hp_change_target": +10, "hp_change_sender": -5},
@@ -39,7 +38,7 @@ class Actions:
             "напоить": {"hp_change_target": +6, "hp_change_sender": -3},
             "сделать массаж": {"hp_change_target": +15, "hp_change_sender": -4},
             "спеть песню": {"hp_change_target": +5, "hp_change_sender": -1},
-            "подарить цветы": {"hp_change_target": +12, "hp_change_sender": -12},
+            "подарить цветы": {"hp_change_target": +12, "hp_change_sender": -6},
         },
         "нейтральные": {
             "толкнуть": {"hp_change_target": 0, "hp_change_sender": 0},
@@ -70,14 +69,14 @@ class Actions:
     # Полный список всех действий
     ALL_ACTIONS = {
         "Добрые действия": list(INTIMATE_ACTIONS["добрые"].keys()),
-        "Нейтральные действия": list(INTIMATE_ACTIONS["нейтральные"].keys()),
+        "Нейтральные действия": list(INTIMATE_ACTIONS["нейтральные"].keys()),  # Убедитесь, что здесь нет лишнего пробела
         "Злые действия": list(INTIMATE_ACTIONS["злые"].keys())
     }
 
     # Список всех команд для проверки
     ALL_COMMANDS = (
         set(INTIMATE_ACTIONS["добрые"].keys()) | 
-        set(INTIMATE_ACTIONS["нейтральные"].keys()) | 
+        set(INTIMATE_ACTIONS["нейтральные"].keys()) |  # Убедитесь, что здесь нет лишнего пробела
         set(INTIMATE_ACTIONS["злые"].keys())
     )
 
@@ -204,6 +203,8 @@ class Handlers:
     @staticmethod
     def get_command_from_text(text: str) -> tuple:
         """Извлекает команду и дополнительный текст из сообщения"""
+        if text is None:  # Проверка на None
+            return None, None
         text_lower = text.lower()
         for cmd in Actions.ALL_COMMANDS:
             if text_lower.startswith(cmd):
@@ -375,7 +376,7 @@ class Handlers:
         F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP])
     )
     async def handle_rp_commands(message: types.Message):
-        """Обработчик команды /rp_commands"""
+        """Обработчик команда /rp_commands"""
         await Handlers.show_actions_list(message)
 
     @staticmethod
