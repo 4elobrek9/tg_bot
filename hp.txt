@@ -1,5 +1,6 @@
 @Rafichek: 100
-@Cel0brek: 100
-@kavitosik: 95
+@Cel0brek: 97
+@kavitosik: 87
 @Lifeloveeerr: 90
-@infernal_madam_bot: 90
+@infernal_madam_bot: 70
+Л👀: 106

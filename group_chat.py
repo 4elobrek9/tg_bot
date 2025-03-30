@@ -4,45 +4,65 @@ import os
 import time
 from datetime import datetime, timedelta
 
-
 # ====================== КОНФИГУРАЦИЯ ======================
 class Config:
     HP_FILE = "hp.txt"
     COOLDOWN_FILE = "cooldown.txt"
     DEFAULT_HP = 100
-    MAX_HP = 100
+    MAX_HP = 150
     MIN_HP = 0
     HEAL_COOLDOWN = 300  # 5 минут в секундах
     HP_RECOVERY_TIME = 600  # 10 минут в секундах
     HP_RECOVERY_AMOUNT = 10
 
-
 # ====================== ДАННЫЕ ДЕЙСТВИЙ ======================
 class Actions:
-    RP_ACTIONS = [
-        "ударить", "поцеловать", "обнять", "укусить",
-        "погладить", "толкнуть", "ущипнуть", "шлепнуть", "пощечина",
-        "пнуть", "схватить", "заплакать", "засмеяться",
-        "удивиться", "разозлиться", "испугаться", "подмигнуть", "шепнуть"
-    ]
-
     INTIMATE_ACTIONS = {
         "добрые": {
             "поцеловать": {"hp_change_target": +10, "hp_change_sender": -5},
-            "обнять": {"hp_change_target": +15, "hp_change_sender": -5},
-            "погладить": {"hp_change_target": +8, "hp_change_sender": -4},
-            "шепнуть": {"hp_change_target": +5, "hp_change_sender": -3},
-            "романтический поцелуй": {"hp_change_target": +20, "hp_change_sender": -10},
+            "обнять": {"hp_change_target": +15, "hp_change_sender": +15},
+            "погладить": {"hp_change_target": +5, "hp_change_sender": +2},
+            "романтический поцелуй": {"hp_change_target": +20, "hp_change_sender": +10},
             "трахнуть": {"hp_change_target": +30, "hp_change_sender": +15},
+            "поцеловать в щёчку": {"hp_change_target": +7, "hp_change_sender": +3},
+            "прижать к себе": {"hp_change_target": +12, "hp_change_sender": +6},
+            "покормить": {"hp_change_target": +9, "hp_change_sender": -4},
+            "напоить": {"hp_change_target": +6, "hp_change_sender": -3},
+            "сделать массаж": {"hp_change_target": +15, "hp_change_sender": -4},
+            "спеть песню": {"hp_change_target": +5, "hp_change_sender": -1},
+            "подарить цветы": {"hp_change_target": +12, "hp_change_sender": -12},
+        },
+        "нейтральные": {
+            "толкнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+            "схватить": {"hp_change_target": 0, "hp_change_sender": 0},
+            "помахать": {"hp_change_target": 0, "hp_change_sender": 0},
+            "кивнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+            "похлопать": {"hp_change_target": 0, "hp_change_sender": 0},
+            "постучать": {"hp_change_target": 0, "hp_change_sender": 0},
+            "попрощаться": {"hp_change_target": 0, "hp_change_sender": 0},
+            "шепнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+            "почесать спинку": {"hp_change_target": +5, "hp_change_sender": 0},
+
         },
         "злые": {
             "ударить": {"hp_change_target": -10, "hp_change_sender": 0},
             "укусить": {"hp_change_target": -15, "hp_change_sender": 0},
             "шлепнуть": {"hp_change_target": -8, "hp_change_sender": 0},
             "пощечина": {"hp_change_target": -12, "hp_change_sender": 0},
+            "пнуть": {"hp_change_target": -10, "hp_change_sender": 0},
+            "ущипнуть": {"hp_change_target": -7, "hp_change_sender": 0},
+            "толкнуть": {"hp_change_target": -9, "hp_change_sender": 0},
+            "обозвать": {"hp_change_target": -5, "hp_change_sender": 0},
+            "плюнуть": {"hp_change_target": -6, "hp_change_sender": 0},
         }
     }
 
+    # Полный список всех действий для команды "список действий"
+    ALL_ACTIONS = {
+        "Добрые действия": list(INTIMATE_ACTIONS["добрые"].keys()),
+        "Нейтральные действия": list(INTIMATE_ACTIONS["нейтральные"].keys()),
+        "Злые действия": list(INTIMATE_ACTIONS["злые"].keys())
+    }
 
 # ====================== МОДЕЛЬ ДАННЫХ ======================
 class UserHPManager:
@@ -103,7 +123,7 @@ class UserHPManager:
         new_hp = max(Config.MIN_HP, min(Config.MAX_HP, current_hp + hp_change))
         self.user_hp[username] = new_hp
         self.save_hp()
-
+        
         # Если HP упал до 0, устанавливаем время восстановления
         if new_hp <= 0 and username not in self.recovery_times:
             self.recovery_times[username] = time.time() + Config.HP_RECOVERY_TIME
@@ -137,11 +157,9 @@ class UserHPManager:
             return max(0, remaining)
         return 0
 
-
 # ====================== ИНИЦИАЛИЗАЦИЯ ======================
 router = Router()
 hp_manager = UserHPManager()
-
 
 # ====================== ХЭНДЛЕРЫ ======================
 class Handlers:
@@ -150,7 +168,7 @@ class Handlers:
         """Проверяет HP пользователя и обрабатывает случай с 0 HP"""
         username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
         current_hp = hp_manager.get_user_hp(username)
-
+        
         if current_hp <= 0:
             recovery_time = hp_manager.get_recovery_time(username)
             if recovery_time > 0:
@@ -177,11 +195,11 @@ class Handlers:
         """Обработчик плача"""
         if await Handlers.check_zero_hp(message):
             return
-
+            
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         await message.reply(
-            f"{sender_username} заплакал. Сейчас будет либо резня, "
+            f"{sender_username} залакал. Сейчас будет либо резня, "
             f"либо этот чел просто поплачет и успакоется. "
             f"Надеемся что кто-нибудь похилит {sender_username}\n"
             f"(Довели вы клоуны🤡 бедного {sender_username})"
@@ -192,6 +210,7 @@ class Handlers:
         F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP]),
         F.text.lower().startswith(tuple(
             set(Actions.INTIMATE_ACTIONS["добрые"].keys()) | 
+            set(Actions.INTIMATE_ACTIONS["нейтральные"].keys()) |
             set(Actions.INTIMATE_ACTIONS["злые"].keys())
         ))
     )
@@ -200,14 +219,14 @@ class Handlers:
         # Проверяем HP отправителя
         if await Handlers.check_zero_hp(message):
             return
-
+            
         if not message.reply_to_message:
             await message.reply("Пожалуйста, ответьте на сообщение, чтобы использовать эту команду.")
             return
 
         target_user = message.reply_to_message.from_user
         sender = message.from_user
-
+        
         # Запрет использования команд на себя
         if target_user.id == sender.id:
             await message.reply("Вы не можете использовать команды на себе!")
@@ -244,19 +263,24 @@ class Handlers:
             action_data = Actions.INTIMATE_ACTIONS["добрые"][command]
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
             hp_manager.update_user_hp(sender_username, action_data["hp_change_sender"])
-
+            
             # Устанавливаем кулдаун для лечащих команд
             hp_manager.set_cooldown(sender_username)
-
+            
             response = (
                 f"{sender_username} {command_past} {target_username} {additional_word}. "
                 f"{target_username} получает +{action_data['hp_change_target']} HP, "
                 f"{sender_username} теряет {abs(action_data['hp_change_sender'])} HP."
             )
+        elif command in Actions.INTIMATE_ACTIONS["нейтральные"]:
+            action_data = Actions.INTIMATE_ACTIONS["нейтральные"][command]
+            response = (
+                f"{sender_username} {command_past} {target_username} {additional_word}."
+            )
         elif command in Actions.INTIMATE_ACTIONS["злые"]:
             action_data = Actions.INTIMATE_ACTIONS["злые"][command]
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
-
+            
             # Проверяем, не упало ли HP цели до 0
             target_hp = hp_manager.get_user_hp(target_username)
             if target_hp <= 0:
@@ -284,11 +308,11 @@ class Handlers:
         """Показывает текущее HP пользователя"""
         if await Handlers.check_zero_hp(message):
             return
-
+            
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         current_hp = hp_manager.get_user_hp(sender_username)
-
+        
         # Проверяем восстановление HP
         if hp_manager.check_hp_recovery(sender_username):
             current_hp = hp_manager.get_user_hp(sender_username)
@@ -330,18 +354,20 @@ class Handlers:
     @staticmethod
     @router.message(
         F.chat.type.in_([ChatType.GROUP, ChatType.SUPERGROUP]),
-        F.text.lower().startswith(("список действий", "действия", "рп действия"))
+        F.text.lower().startswith(("список действий", "действия", "рп действия", "список рп"))
     )
     async def handle_actions_list(message: types.Message):
         """Показывает список всех RP-действий"""
         if await Handlers.check_zero_hp(message):
             return
-
-        actions_list = "Доступные RP-действия:\n" + \
-                       "\n".join(f"- {action}" for action in Actions.RP_ACTIONS)
-
+            
+        actions_list = "📋 Доступные RP-действия:\n\n"
+        for category, actions in Actions.ALL_ACTIONS.items():
+            actions_list += f"🔹 {category}:\n"
+            actions_list += "\n".join(f"   - {action}" for action in actions)
+            actions_list += "\n\n"
+        
         await message.reply(actions_list)
-
 
 # ====================== НАСТРОЙКА ======================
 def setup_group_handlers(dp):
