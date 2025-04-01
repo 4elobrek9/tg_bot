@@ -7,7 +7,7 @@ from aiogram.filters import Command
 import requests
 from bs4 import BeautifulSoup
 from random import choice
-from group_chat import setup_group_handlers
+from group_chat_rp import setup_group_handlers
 # from channel import setup_channel_handlers
 
 load_dotenv(find_dotenv())

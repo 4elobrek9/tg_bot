@@ -4,6 +4,9 @@ from aiogram.filters import Command
 import os
 import time
 
+# Создаем отдельный роутер для RP
+rp_router = Router(name="rp_router")
+rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 # ====================== КОНФИГУРАЦИЯ ======================
 class Config:
     HP_FILE = "hp.txt"
@@ -39,6 +42,8 @@ class Actions:
             "сделать массаж": {"hp_change_target": +15, "hp_change_sender": -4},
             "спеть песню": {"hp_change_target": +5, "hp_change_sender": -1},
             "подарить цветы": {"hp_change_target": +12, "hp_change_sender": -6},
+            "подрочить": {"hp_change_target": +12, "hp_change_sender": +6},
+
         },
         "нейтральные": {
             "толкнуть": {"hp_change_target": 0, "hp_change_sender": 0},
@@ -63,6 +68,7 @@ class Actions:
             "толкнуть сильно": {"hp_change_target": -9, "hp_change_sender": 0},
             "обозвать": {"hp_change_target": -5, "hp_change_sender": 0},
             "плюнуть": {"hp_change_target": -6, "hp_change_sender": 0},
+            "превратить": {"hp_change_target": -80, "hp_change_sender": 0},
         }
     }
 
@@ -285,7 +291,6 @@ class Handlers:
             response = (
                 f"{sender_username} {command_past} {target_username} {additional_word}. "
                 f"{target_username} получает +{action_data['hp_change_target']} HP, "
-                f"{sender_username} теряет {abs(action_data['hp_change_sender'])} HP."
             )
         elif command in Actions.INTIMATE_ACTIONS["нейтральные"]:
             response = f"{sender_username} {command_past} {target_username} {additional_word}."
@@ -394,5 +399,7 @@ class Handlers:
         await message.reply(actions_list)
 
 # ====================== НАСТРОЙКА ======================
-def setup_group_handlers(dp):
-    dp.include_router(router)
+def setup_rp_handlers(dp):
+    dp.include_router(rp_router)
+    return dp
+
