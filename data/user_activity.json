@@ -1,52 +1,96 @@
 {
   "1943745280": {
-    "daily_messages": 11,
-    "total_messages": 11,
-    "last_active": 1743438422.7641666,
+    "daily_messages": 41,
+    "total_messages": 41,
+    "last_active": 1743589702.4727585,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
-    "hp": 0
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0
   },
   "1857105784": {
-    "daily_messages": 27,
-    "total_messages": 27,
-    "last_active": 1743438362.5843694,
+    "daily_messages": 148,
+    "total_messages": 148,
+    "last_active": 1743601335.4575696,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
-    "hp": 0
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "username": "☨"
   },
   "6452778134": {
-    "daily_messages": 6,
-    "total_messages": 6,
-    "last_active": 1743438314.484275,
+    "daily_messages": 156,
+    "total_messages": 156,
+    "last_active": 1743599675.2368073,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
-    "hp": 0
+    "hp": 90,
+    "daily_flames": 0,
+    "total_flames": 0
   },
   "2079990811": {
-    "daily_messages": 30,
-    "total_messages": 30,
-    "last_active": 1743438341.3368514,
+    "daily_messages": 182,
+    "total_messages": 182,
+    "last_active": 1743598617.4459765,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
-    "hp": 100
+    "hp": 112,
+    "daily_flames": 0,
+    "total_flames": 0
   },
   "5315054003": {
-    "daily_messages": 34,
-    "total_messages": 34,
-    "last_active": 1743442704.9021533,
-    "hp": 150
+    "daily_messages": 343,
+    "total_messages": 343,
+    "last_active": 1743601679.2460122,
+    "hp": 150,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "username": "@Cel0brek"
+  },
+  "1579980588": {
+    "daily_messages": 102,
+    "total_messages": 102,
+    "last_active": 1743599155.0437086,
+    "hp": 150,
+    "daily_flames": 0,
+    "total_flames": 0
+  },
+  "2022606130": {
+    "daily_messages": 35,
+    "total_messages": 35,
+    "last_active": 1743596694.2930846,
+    "hp": 150,
+    "daily_flames": 0,
+    "total_flames": 0
+  },
+  "5187387771": {
+    "daily_messages": 52,
+    "total_messages": 52,
+    "last_active": 1743590850.4447083,
+    "hp": 150,
+    "daily_flames": 0,
+    "total_flames": 0
+  },
+  "5210568951": {
+    "daily_messages": 1,
+    "total_messages": 1,
+    "last_active": 1743511364.6949174,
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0
   }
 }

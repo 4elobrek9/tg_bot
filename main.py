@@ -1,157 +1,195 @@
 import asyncio
 import os
+from contextlib import suppress
 from loguru import logger
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
+from aiogram.enums import ParseMode
 import requests
 from bs4 import BeautifulSoup
 from random import choice
-from group_chat_stat import setup_stat_handlers
-from group_chat_rp import setup_rp_handlers
+from group_chat import setup_all_handlers
 
-load_dotenv(find_dotenv())
+# Инициализация окружения
+load_dotenv()
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-bot = Bot(token=TOKEN)
-logger.info("Создан бот")
+class BotConfig:
+    """Конфигурация бота и путей"""
+    def __init__(self):
+        # Используем относительные пути
+        self.FILE_PATH = os.path.join('data', 'value.txt')
+        self.USER_FILE_PATH = os.path.join('data', 'subscribed_users.txt')
+        os.makedirs('data', exist_ok=True)
+        
+        # Настройки бота
+        self.bot_properties = DefaultBotProperties(parse_mode=ParseMode.HTML)
+        
+        # Состояние приложения
+        self.last_value = None
+        self.subscribed_users = set()
+        self.is_sending_values = False
+        self.lock = asyncio.Lock()
 
-# Пути к файлам
-FILE_PATH = 'C:/Users/motion-detector/value.txt'
-USER_FILE_PATH = 'subscribed_users.txt'
-last_value = None
-subscribed_users = set()
-is_sending_values = False
-
-async def load_subscribed_users():
-    """Загружаем список подписанных пользователей"""
-    if os.path.exists(USER_FILE_PATH):
-        with open(USER_FILE_PATH, 'r') as file:
-            for line in file:
-                user_id = line.strip()
-                if user_id.isdigit():
-                    subscribed_users.add(int(user_id))
-
-async def save_subscribed_user(user_id):
-    """Сохраняем ID подписавшегося пользователя"""
-    with open(USER_FILE_PATH, 'a') as file:
-        file.write(f"{user_id}\n")
-    logger.info(f"Пользователь {user_id} добавлен в список подписчиков.")
-
-async def read_value_from_file():
-    """Чтение значения из файла"""
-    try:
-        with open(FILE_PATH, 'r') as file:
-            line = file.readline().strip()
-            if line.startswith("check = "):
-                return line.split('=')[1].strip()
-    except Exception as e:
-        logger.error(f"Ошибка при чтении файла: {e}")
-    return None
-
-async def update_telegram_message():
-    """Обновление и рассылка значений"""
-    global last_value
-    while True:
-        if is_sending_values:
-            new_value = await read_value_from_file()
-            if new_value and new_value != last_value:
-                last_value = new_value
-                for user_id in subscribed_users:
-                    await bot.send_message(
-                        user_id, 
-                        f"ВНИМАНИЕ ЗАФИКСИРОВАНО ДВИЖЕНИЕ! Всего было движений: {new_value}"
-                    )
-        await asyncio.sleep(2)
-
-async def send_random_joke():
-    """Отправка случайных анекдотов"""
-    while True:
-        try:
-            response = requests.get("https://www.anekdot.ru/random/anekdot/")
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                jokes = soup.find_all('div', class_='text')
-                anekdot = choice(jokes).text.strip()
-            else:
-                anekdot = 'Не удалось получить анекдот'
-
-            await bot.send_message(CHANNEL_ID, f"Шутка: {anekdot}")
-        except Exception as e:
-            logger.error(f"Ошибка при отправке сообщения: {e}")
-
-        await asyncio.sleep(30)
-
-async def main():
-    """Основная функция бота"""
-    logger.info("Инициализация бота...")
-    logger.add(
-        "file.log",
-        format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
-        rotation="3 days",
-        backtrace=True,
-        diagnose=True
-    )
-
-    # Создаем диспетчер
-    dp = Dispatcher()
-    logger.info("Диспетчер создан")
+class BotServices:
+    """Сервисы бота для работы с данными"""
+    def __init__(self, config: BotConfig):
+        self.config = config
     
-    # Подключаем модули
-    dp = setup_stat_handlers(dp)
-    dp = setup_rp_handlers(dp)
-    logger.info("Модули подключены")
+    async def load_subscribed_users(self):
+        """Загрузка подписанных пользователей"""
+        if os.path.exists(self.config.USER_FILE_PATH):
+            async with self.config.lock:
+                with open(self.config.USER_FILE_PATH, 'r') as file:
+                    self.config.subscribed_users = {
+                        int(line.strip()) for line in file if line.strip().isdigit()
+                    }
 
-    # Обработчики команд
+    async def save_subscribed_user(self, user_id: int):
+        """Сохранение подписчика"""
+        async with self.config.lock:
+            with open(self.config.USER_FILE_PATH, 'a') as file:
+                file.write(f"{user_id}\n")
+            logger.info(f"User {user_id} subscribed")
+
+    async def read_value_from_file(self):
+        """Чтение значения из файла"""
+        try:
+            with open(self.config.FILE_PATH, 'r') as file:
+                if line := file.readline().strip():
+                    if line.startswith("check = "):
+                        return line.split('=')[1].strip()
+        except Exception as e:
+            logger.error(f"File read error: {e}")
+        return None
+
+async def setup_bot_handlers(dp: Dispatcher, config: BotConfig, services: BotServices):
+    """Настройка обработчиков команд"""
+    
     @dp.message(Command('start'))
     async def send_welcome(message: types.Message):
-        await message.answer(
-            "Бот запущен, сигналка работает\n"
-            "чтобы рассылку отключить пропиши /sval\n"
-            "Для статистики активности используйте 'статистика'\n"
-            "Для RP-действий используйте соответствующие команды"
-        )
         user_id = message.from_user.id
-        if user_id not in subscribed_users:
-            subscribed_users.add(user_id)
-            await save_subscribed_user(user_id)
-            await message.answer("Вы подписались на рассылку значений.")
-        else:
-            await message.answer("Вы уже подписаны на рассылку значений.")
+        async with config.lock:
+            if user_id not in config.subscribed_users:
+                config.subscribed_users.add(user_id)
+                await services.save_subscribed_user(user_id)
+                response = "Вы подписались на рассылку значений."
+            else:
+                response = "Вы уже подписаны."
+        
+        await message.answer(
+            "Бот запущен\n"
+            "Команды:\n"
+            "/val - включить рассылку\n"
+            "/sval - выключить рассылку\n"
+            "статистика - просмотр активности\n"
+            "RP-команды - список через /rp_commands\n"
+            + response
+        )
 
     @dp.message(Command('val'))
     async def start_sending_values(message: types.Message):
-        global is_sending_values
-        is_sending_values = True
-        await message.answer("Рассылка значений включена.")
+        async with config.lock:
+            config.is_sending_values = True
+        await message.answer("Рассылка активирована")
 
     @dp.message(Command('sval'))
     async def stop_sending_values(message: types.Message):
-        global is_sending_values
-        is_sending_values = False
-        await message.answer("Рассылка значений выключена.\nвключить можно с помощью /val")
+        async with config.lock:
+            config.is_sending_values = False
+        await message.answer("Рассылка отключена")
 
-    # Запускаем фоновые задачи
-    await load_subscribed_users()
-    tasks = [
-        asyncio.create_task(send_random_joke()),
-        asyncio.create_task(update_telegram_message())
-    ]
+async def monitoring_task(config: BotConfig, bot: Bot):
+    """Фоновая задача мониторинга значений"""
+    while True:
+        if config.is_sending_values:
+            new_value = await BotServices(config).read_value_from_file()
+            if new_value and new_value != config.last_value:
+                config.last_value = new_value
+                async with config.lock:
+                    users = config.subscribed_users.copy()
+                
+                for user_id in users:
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            f"⚠️ Обнаружено движение! Всего: {new_value}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Send error to {user_id}: {e}")
+        await asyncio.sleep(2)
 
-    try:
-        logger.info("Запущен без ошибок...")
-        await dp.start_polling(bot)
-    finally:
-        logger.info("Остановка бота...")
-        for task in tasks:
-            task.cancel()
-        await bot.session.close()
+async def jokes_task(bot: Bot):
+    """Фоновая задача отправки анекдотов"""
+    while True:
+        try:
+            response = requests.get(
+                "https://www.anekdot.ru/random/anekdot/",
+                timeout=10
+            )
+            if response.ok:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                if jokes := soup.find_all('div', class_='text'):
+                    await bot.send_message(
+                        CHANNEL_ID,
+                        f"🎭 {choice(jokes).text.strip()}"
+                    )
+            await asyncio.sleep(30)
+        except Exception as e:
+            logger.error(f"Jokes error: {e}")
+            await asyncio.sleep(60)
+
+async def main():
+    """Основная функция инициализации"""
+    # Настройка логгера
+    logger.add(
+        "bot.log",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {message}",
+        rotation="1 MB",
+        compression="zip",
+        backtrace=True,
+        diagnose=True
+    )
+    
+    # Инициализация компонентов
+    config = BotConfig()
+    services = BotServices(config)
+    bot = Bot(token=TOKEN, default=config.bot_properties)
+    dp = Dispatcher()
+
+    # Регистрация обработчиков
+    await setup_bot_handlers(dp, config, services)
+    setup_all_handlers(dp)  # Регистрируем обработчики статистики
+    
+    # Загрузка данных
+    await services.load_subscribed_users()
+
+    logger.info("Bot started")
+    async with bot:
+        await bot.delete_webhook(drop_pending_updates=True)
+        tasks = [
+            asyncio.create_task(monitoring_task(config, bot)),
+            asyncio.create_task(jokes_task(bot)),
+            asyncio.create_task(dp.start_polling(bot))
+        ]
+        
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            logger.info("Bot shutdown requested")
+        finally:
+            for task in tasks:
+                task.cancel()
+            with suppress(Exception):
+                await asyncio.gather(*tasks, return_exceptions=True)
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Бот выключен по запросу пользователя")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Критическая ошибка: {e}")
+        logger.critical(f"Fatal error: {e}")
