@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import json
 from collections import defaultdict
 import logging
+from typing import Dict, Any
 # logging.basicConfig(level=logging.INFO)
 # logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 
 # ====================== КОНФИГУРАЦИЯ ======================
 class Config:
-    HP_FILE = "hp.txt"
+    HP_FILE = "data/hp_data.txt"
     COOLDOWN_FILE = "cooldown.txt"
     USER_DATA_FILE = "data/user_activity.json"
     DEFAULT_HP = 100
@@ -409,18 +410,9 @@ class Handlers:
 
 # ====================== НАСТРОЙКА ======================
 # ====================== STATS MODULE ======================
-
-# Создаем отдельный роутер для статистики
-# rp_router = Router(name="rp_router")
-# rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
-
-# Стили оформления
-# Стили оформления
 STATS_STYLE = {
-    "header": "✨ <b>{sender_username}</b> ✨",
-    "divider": "▬▬▬▬▬▬▬▬▬▬▬▬▬",
-    "stat_row": "┃ {stat:<15} ┃ {value:>5} ┃",
-    "footer": "➖➖➖➖➖➖➖➖➖"
+    "divider": "-------------------",
+    "footer": "Используйте  для просмотра рейтинга"
 }
 
 class UserActivityTracker:
@@ -429,21 +421,42 @@ class UserActivityTracker:
         self._schedule_daily_reset()
         self.daily_top_users = {}  # Хранит топ пользователей за день
     
-    def _load_data(self):
-        if os.path.exists(Config.USER_DATA_FILE):
-            with open(Config.USER_DATA_FILE, "r", encoding='utf-8') as f:
-                data = json.load(f)
-                for user_id, user_data in data.items():
-                    if "hp" not in user_data:
-                        user_data["hp"] = 0
-                    if "daily_flames" not in user_data:
-                        user_data["daily_flames"] = 0
-                    if "total_flames" not in user_data:
-                        user_data["total_flames"] = 0
-                return defaultdict(self._default_user_data, data)
-        return defaultdict(self._default_user_data)
+    def _load_data(self) -> Dict[str, Any]:
+        try:
+            if os.path.exists(Config.USER_DATA_FILE):
+                with open(Config.USER_DATA_FILE, "r", encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Конвертируем старые ID в новые username если нужно
+                    converted_data = {}
+                    for user_id, user_data in data.items():
+                        if isinstance(user_id, str) and user_id.isdigit():
+                            # Это старый цифровой ID, конвертируем в username если он есть
+                            username = user_data.get("username", f"user_{user_id}")
+                            converted_data[username] = user_data
+                        else:
+                            converted_data[user_id] = user_data
+                    
+                    # Добавляем недостающие поля
+                    for user_data in converted_data.values():
+                        if "hp" not in user_data:
+                            user_data["hp"] = 0
+                        if "daily_flames" not in user_data:
+                            user_data["daily_flames"] = 0
+                        if "total_flames" not in user_data:
+                            user_data["total_flames"] = 0
+                        if "daily_top_count" not in user_data:
+                            user_data["daily_top_count"] = 0
+                    
+                    return defaultdict(self._default_user_data, converted_data)
+            
+            # Если файла нет, создаем пустой словарь
+            return defaultdict(self._default_user_data)
+        
+        except (json.JSONDecodeError, IOError):
+            # Если файл поврежден, создаем новый
+            return defaultdict(self._default_user_data)
     
-    def _default_user_data(self):
+    def _default_user_data(self) -> Dict[str, Any]:
         return {
             "daily_messages": 0,
             "total_messages": 0,
@@ -451,39 +464,51 @@ class UserActivityTracker:
             "hp": 0,
             "daily_flames": 0,
             "total_flames": 0,
-            "daily_top_count": 0
+            "daily_top_count": 0,
+            "reward_level": "low",
+            "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
+            "unlocked_bgs": [
+                "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
+            ]
         }
     
-    def _schedule_daily_reset(self):
+    def _schedule_daily_reset(self) -> None:
         now = datetime.now()
         midnight = now.replace(hour=21, minute=0, second=0, microsecond=0)
         if now > midnight:
             midnight += timedelta(days=1)
         self.next_reset = midnight.timestamp()
     
-    def _check_reset(self):
+    def _check_reset(self) -> None:
         current_time = time.time()
         if current_time > self.next_reset:
+            # Награждаем топового пользователя дня
             if self.daily_top_users:
-                top_user_id = max(self.daily_top_users, key=self.daily_top_users.get)
-                if str(top_user_id) in self.data:
-                    self.data[str(top_user_id)]["daily_flames"] += Config.DAILY_TOP_REWARD
-                    self.data[str(top_user_id)]["total_flames"] += Config.DAILY_TOP_REWARD
-                    self.data[str(top_user_id)]["daily_top_count"] += 1
+                top_user = max(self.daily_top_users.items(), key=lambda x: x[1])
+                top_username = top_user[0]
+                if top_username in self.data:
+                    self.data[top_username]["daily_flames"] += Config.DAILY_TOP_REWARD
+                    self.data[top_username]["total_flames"] += Config.DAILY_TOP_REWARD
+                    self.data[top_username]["daily_top_count"] += 1
             
-            for user in self.data.values():
-                user["daily_messages"] = 0
-                user["daily_flames"] = 0
+            # Сбрасываем дневные сообщения
+            for user_data in self.data.values():
+                user_data["daily_messages"] = 0
+                user_data["daily_flames"] = 0
             
             self.daily_top_users = {}
             self._schedule_daily_reset()
             self._save_data()
     
-    def _save_data(self):
+    def _save_data(self) -> None:
+        # Создаем директорию если ее нет
+        os.makedirs(os.path.dirname(Config.USER_DATA_FILE), exist_ok=True)
+        
         with open(Config.USER_DATA_FILE, "w", encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
+            # Преобразуем defaultdict в обычный dict для сохранения
+            json.dump(dict(self.data), f, ensure_ascii=False, indent=2)
     
-    def _load_hp_data(self):
+    def _load_hp_data(self) -> Dict[str, int]:
         hp_data = {}
         if os.path.exists(Config.HP_FILE):
             with open(Config.HP_FILE, "r", encoding='utf-8') as f:
@@ -499,87 +524,77 @@ class UserActivityTracker:
                                 continue
         return hp_data
     
-    def record_activity(self, user_id: int, username: str):
+    def record_activity(self, user: types.User) -> None:
         self._check_reset()
-        user_id = str(user_id)
         
-        if user_id not in self.data:
-            self.data[user_id] = self._default_user_data()
-            
-        user_data = self.data[user_id]
+        # Формируем username в формате @username
+        username = f"@{user.username}" if user.username else f"@{user.first_name}"
+        
+        # Если пользователя нет в данных, добавляем его
+        if username not in self.data:
+            self.data[username] = self._default_user_data()
+            self.data[username]["username"] = username  # Сохраняем username
+        
+        user_data = self.data[username]
         user_data["daily_messages"] += 1
         user_data["total_messages"] += 1
         user_data["last_active"] = time.time()
         
-        if user_id not in self.daily_top_users:
-            self.daily_top_users[user_id] = 0
-        self.daily_top_users[user_id] += 1
+        # Обновляем топ дня
+        if username not in self.daily_top_users:
+            self.daily_top_users[username] = 0
+        self.daily_top_users[username] += 1
         
+        # Загружаем и обновляем HP
         hp_data = self._load_hp_data()
-        user_key = f"@{username}" if not username.startswith("@") else username
-        user_data["hp"] = hp_data.get(user_key, 0)
+        user_data["hp"] = hp_data.get(username, 0)
         
         self._save_data()
     
-    def get_user_stats(self, user_id: int, username: str):
-        user_id = str(user_id)
-        if user_id not in self.data:
+    def get_user_stats(self, user: types.User) -> Dict[str, Any]:
+        username = f"@{user.username}" if user.username else f"@{user.first_name}"
+        
+        if username not in self.data:
             return None
         
         hp_data = self._load_hp_data()
-        user_key = f"@{username}" if not username.startswith("@") else username
-        self.data[user_id]["hp"] = hp_data.get(user_key, 0)
+        self.data[username]["hp"] = hp_data.get(username, 0)
         
-        return self.data[user_id]
+        return self.data[username]
 
-    def get_top_users(self, count=10):
+    def get_top_users(self, count: int = 10) -> list:
         self._check_reset()
-        users = []
-        unique_users = set()
         
+        # Создаем список пользователей с их статистикой
         user_list = []
-        for user_id, data in self.data.items():
-            username = data.get("username", "Неизвестный пользователь")
+        for username, data in self.data.items():
+            if not isinstance(data, dict):
+                continue
+                
             user_list.append({
                 "username": username,
-                "messages": data["daily_messages"],
-                "hp": data["hp"],
-                "flames": data["total_flames"]
+                "messages": data.get("daily_messages", 0),
+                "hp": data.get("hp", 0),
+                "flames": data.get("total_flames", 0)
             })
-
-        sorted_users = sorted(user_list, key=lambda x: x["messages"], reverse=True)
-
-        for user in sorted_users:
-            if user["username"] in unique_users:
-                continue
-            
-            users.append({
-                "name": user["username"],
-                "messages": user["messages"],
-                "hp": user["hp"],
-                "flames": user["flames"]
-            })
-            unique_users.add(user["username"])
-            
-            if len(users) >= count:
-                break
         
-        # Убедимся, что топ содержит от 3 до 10 пользователей
-        if len(users) < 3:
-            return users[:3] if len(users) >= 3 else users
-        return users[:10]
+        # Сортируем по количеству сообщений (от большего к меньшему)
+        sorted_users = sorted(user_list, key=lambda x: x["messages"], reverse=True)
+        
+        # Возвращаем топ N пользователей
+        return sorted_users[:count]
 
-def format_top_message(top_users: list):
+def format_top_message(top_users: list) -> str:
     if not top_users:
         return "❌ Нет данных для отображения топа"
     
-    message = ["🏆 <b>ИНФО</b> 🏆", STATS_STYLE["divider"]]
+    message = ["🏆 <b>ТОП УЧАСТНИКОВ</b> 🏆", STATS_STYLE["divider"]]
     
     for i, user in enumerate(top_users, 1):
-        user_name = user.get("name", "Неизвестный пользователь")
+        username = user.get("username", "Неизвестный пользователь")
         flames = "🔥" * user.get("flames", 0)
         message.append(
-            f"{i}. {user_name}: "
+            f"{i}. {username}: "
             f"✉️ {user.get('messages', 0)} | "
             f"❤️ {user.get('hp', 0)} | "
             f"{flames}"
@@ -588,25 +603,30 @@ def format_top_message(top_users: list):
     message.append(STATS_STYLE["footer"])
     return "\n".join(message)
 
+def format_user_stats(username: str, stats: Dict[str, Any]) -> str:
+    flames = "🔥" * stats.get("total_flames", 0)
+    return (
+        f"📊 <b>ПРОФИЛЬ {username}</b>\n"
+        f"{STATS_STYLE['divider']}\n"
+        f"✉️ Сообщений сегодня: {stats.get('daily_messages', 0)}\n"
+        f"✉️ Сообщений всего: {stats.get('total_messages', 0)}\n"
+        f"❤️ HP: {stats.get('hp', 0)}\n"
+        f"🔥 Всего flames: {stats.get('total_flames', 0)} {flames}\n"
+        f"🏆 Топов дня: {stats.get('daily_top_count', 0)}\n"
+        f"{STATS_STYLE['footer']}"
+    )
+
 async def show_stats(message: types.Message):
-    user = message.from_user
-    username = user.username if user.username else user.first_name
-    tracker = UserActivityTracker()  # Создаем экземпляр класса
-    stats = tracker.get_user_stats(user.id, username)
+    tracker = UserActivityTracker()
+    stats = tracker.get_user_stats(message.from_user)
     
     if not stats:
         await message.reply("❌ Статистика не найдена!")
         return
     
-    formatted_stats = format_top_message([{
-        "name": username,
-        "messages": stats["daily_messages"],
-        "hp": stats["hp"],
-        "flames": stats["total_flames"]
-    }])
-    
+    username = f"@{message.from_user.username}" if message.from_user.username else f"@{message.from_user.first_name}"
+    formatted_stats = format_user_stats(username, stats)
     await message.reply(formatted_stats, parse_mode="HTML")
-
 
 @rp_router.message(F.text.lower() == "профиль")
 async def show_profile(message: types.Message):
@@ -614,17 +634,15 @@ async def show_profile(message: types.Message):
 
 @rp_router.message(F.text.lower() == "топ")
 async def show_top_stats(message: types.Message):
-    tracker = UserActivityTracker()  # Создаем экземпляр класса
-    top_users = tracker.get_top_users()
+    tracker = UserActivityTracker()
+    top_users = tracker.get_top_users(10)  # Получаем топ 10 пользователей
     formatted_top = format_top_message(top_users)
     await message.reply(formatted_top, parse_mode="HTML")
 
 @rp_router.message()
 async def track_message_activity(message: types.Message):
-    user = message.from_user
-    username = user.username if user.username else user.first_name
-    tracker = UserActivityTracker()  # Создаем экземпляр класса
-    tracker.record_activity(user.id, username)
+    tracker = UserActivityTracker()
+    tracker.record_activity(message.from_user)
 
 # ====================== НАСТРОЙКА ======================
 def setup_rp_handlers(dp):

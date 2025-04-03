@@ -1,114 +1,47 @@
 {
-  "1943745280": {
-    "daily_messages": 43,
-    "total_messages": 43,
-    "last_active": 1743625172.025185,
-    "reward_level": "low",
-    "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
-    "unlocked_bgs": [
-      "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
-    ],
-    "hp": 0,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "1857105784": {
-    "daily_messages": 163,
-    "total_messages": 163,
-    "last_active": 1743624732.2542026,
-    "reward_level": "low",
-    "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
-    "unlocked_bgs": [
-      "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
-    ],
-    "hp": 0,
+  "@Cel0brek": {
+    "daily_messages": 15,
+    "total_messages": 15,
+    "last_active": 1743690024.3280885,
+    "hp": 94,
     "daily_flames": 0,
     "total_flames": 0,
-    "username": "☨"
-  },
-  "6452778134": {
-    "daily_messages": 185,
-    "total_messages": 185,
-    "last_active": 1743625577.4578593,
+    "daily_top_count": 0,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
-    "hp": 90,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "2079990811": {
-    "daily_messages": 196,
-    "total_messages": 196,
-    "last_active": 1743625141.2839794,
-    "reward_level": "low",
-    "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
-    "unlocked_bgs": [
-      "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
-    ],
-    "hp": 112,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "5315054003": {
-    "daily_messages": 432,
-    "total_messages": 432,
-    "last_active": 1743686940.7453766,
-    "hp": 144,
-    "daily_flames": 0,
-    "total_flames": 0,
     "username": "@Cel0brek"
   },
-  "1579980588": {
-    "daily_messages": 107,
-    "total_messages": 107,
-    "last_active": 1743625063.3282566,
-    "hp": 150,
+  "@Л👀": {
+    "daily_messages": 3,
+    "total_messages": 3,
+    "last_active": 1743690064.307991,
+    "hp": 0,
     "daily_flames": 0,
-    "total_flames": 0
+    "total_flames": 0,
+    "daily_top_count": 0,
+    "reward_level": "low",
+    "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
+    "unlocked_bgs": [
+      "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
+    ],
+    "username": "@Л👀"
   },
-  "2022606130": {
-    "daily_messages": 53,
-    "total_messages": 53,
-    "last_active": 1743625565.2839413,
-    "hp": 150,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "5187387771": {
-    "daily_messages": 52,
-    "total_messages": 52,
-    "last_active": 1743590850.4447083,
-    "hp": 150,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "5210568951": {
+  "@Mr_he1per": {
     "daily_messages": 1,
     "total_messages": 1,
-    "last_active": 1743511364.6949174,
-    "hp": 0,
-    "daily_flames": 0,
-    "total_flames": 0
-  },
-  "5157172276": {
-    "daily_messages": 17,
-    "total_messages": 17,
-    "last_active": 1743686970.1211264,
+    "last_active": 1743690036.525116,
     "hp": 0,
     "daily_flames": 0,
     "total_flames": 0,
-    "daily_top_count": 0
-  },
-  "7175749771": {
-    "daily_messages": 2,
-    "total_messages": 2,
-    "last_active": 1743686932.224406,
-    "hp": 117,
-    "daily_flames": 0,
-    "total_flames": 0,
-    "daily_top_count": 0
+    "daily_top_count": 0,
+    "reward_level": "low",
+    "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
+    "unlocked_bgs": [
+      "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
+    ],
+    "username": "@Mr_he1per"
   }
 }
