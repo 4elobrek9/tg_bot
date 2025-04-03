@@ -1,8 +1,8 @@
 {
   "1943745280": {
-    "daily_messages": 41,
-    "total_messages": 41,
-    "last_active": 1743589702.4727585,
+    "daily_messages": 43,
+    "total_messages": 43,
+    "last_active": 1743625172.025185,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
@@ -13,9 +13,9 @@
     "total_flames": 0
   },
   "1857105784": {
-    "daily_messages": 148,
-    "total_messages": 148,
-    "last_active": 1743601335.4575696,
+    "daily_messages": 163,
+    "total_messages": 163,
+    "last_active": 1743624732.2542026,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
@@ -27,9 +27,9 @@
     "username": "☨"
   },
   "6452778134": {
-    "daily_messages": 156,
-    "total_messages": 156,
-    "last_active": 1743599675.2368073,
+    "daily_messages": 185,
+    "total_messages": 185,
+    "last_active": 1743625577.4578593,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
@@ -40,9 +40,9 @@
     "total_flames": 0
   },
   "2079990811": {
-    "daily_messages": 182,
-    "total_messages": 182,
-    "last_active": 1743598617.4459765,
+    "daily_messages": 196,
+    "total_messages": 196,
+    "last_active": 1743625141.2839794,
     "reward_level": "low",
     "current_bg": "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg",
     "unlocked_bgs": [
@@ -53,26 +53,26 @@
     "total_flames": 0
   },
   "5315054003": {
-    "daily_messages": 343,
-    "total_messages": 343,
-    "last_active": 1743601679.2460122,
-    "hp": 150,
+    "daily_messages": 432,
+    "total_messages": 432,
+    "last_active": 1743686940.7453766,
+    "hp": 144,
     "daily_flames": 0,
     "total_flames": 0,
     "username": "@Cel0brek"
   },
   "1579980588": {
-    "daily_messages": 102,
-    "total_messages": 102,
-    "last_active": 1743599155.0437086,
+    "daily_messages": 107,
+    "total_messages": 107,
+    "last_active": 1743625063.3282566,
     "hp": 150,
     "daily_flames": 0,
     "total_flames": 0
   },
   "2022606130": {
-    "daily_messages": 35,
-    "total_messages": 35,
-    "last_active": 1743596694.2930846,
+    "daily_messages": 53,
+    "total_messages": 53,
+    "last_active": 1743625565.2839413,
     "hp": 150,
     "daily_flames": 0,
     "total_flames": 0
@@ -92,5 +92,23 @@
     "hp": 0,
     "daily_flames": 0,
     "total_flames": 0
+  },
+  "5157172276": {
+    "daily_messages": 17,
+    "total_messages": 17,
+    "last_active": 1743686970.1211264,
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "daily_top_count": 0
+  },
+  "7175749771": {
+    "daily_messages": 2,
+    "total_messages": 2,
+    "last_active": 1743686932.224406,
+    "hp": 117,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "daily_top_count": 0
   }
 }
