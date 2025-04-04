@@ -4,14 +4,53 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 import time
+import re
+import asyncio
+import random
+from pathlib import Path
 from datetime import datetime, timedelta
 import json
 from collections import defaultdict
 import logging
+from logging.handlers import RotatingFileHandler
+import sys
 from typing import Dict, Any
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
+from aiogram.types import Message
+filter_logger = logging.getLogger("filter")
+filter_logger.setLevel(logging.DEBUG)
 
+def setup_logging():
+    # Создаем логгер
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    # Формат сообщений
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Вывод в консоль
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    
+    # Запись в файл (ротация каждые 5 МБ)
+    file_handler = RotatingFileHandler(
+        'bot.log', 
+        maxBytes=5*1024*1024, 
+        backupCount=3,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+
+    # Добавляем обработчики
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    
+    return logger
+
+# Инициализация логгера
+logger = setup_logging()
 # Создаем отдельный роутер для RP
 rp_router = Router(name="rp_router")
 rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
@@ -643,8 +682,70 @@ async def show_top_stats(message: types.Message):
 async def track_message_activity(message: types.Message):
     tracker = UserActivityTracker()
     tracker.record_activity(message.from_user)
+# ====================== BAN WORDS MODULE ======================
+class MatFilter:
+    def __init__(self):
+        self.enabled = True
+        self.bad_words = self.load_bad_words()
+        self.compiled_pattern = self._compile_pattern()
+        logger.info(f"Загружено {len(self.bad_words)} запрещенных слов")
+
+    def _compile_pattern(self):
+        pattern = r'\b(' + '|'.join(re.escape(word) for word in self.bad_words) + r')\w*'
+        return re.compile(pattern, re.IGNORECASE)
+
+    def load_bad_words(self):
+        try:
+            with open("badwords.txt", "r", encoding="utf-8") as f:
+                return [word.strip().lower() for word in f if word.strip()]
+        except:
+            return ["хуй", "пизд", "еб", "бля", "гандон"]
+
+    def censor(self, word):
+        return ''.join(random.choice("@#$%&*!") for _ in word)
+
+    def check_message(self, text):
+        return bool(self.compiled_pattern.search(text.lower())) if text else False
+
+    def process_message(self, text):
+        def replace_match(match):
+            return self.censor(match.group(0))
+        return self.compiled_pattern.sub(replace_match, text)
+
+mat_filter = MatFilter()
+
+# ====================== ОБРАБОТЧИК МАТА ======================
+@rp_router.message(Command("matfilter"))
+async def toggle_filter(message: Message):
+    mat_filter.enabled = not mat_filter.enabled
+    status = "ВКЛЮЧЕН" if mat_filter.enabled else "ВЫКЛЮЧЕН"
+    await message.reply(f"Фильтр мата теперь {status}!")
+
+@rp_router.message(F.chat.type.in_({"group", "supergroup"}), F.text)
+async def filter_messages(message: Message):
+    if not mat_filter.enabled:
+        return
+        
+    if mat_filter.check_message(message.text):
+        try:
+            await message.delete()
+            censored = mat_filter.process_message(message.text)
+            await message.answer(
+                f"🚫 {message.from_user.mention_html()}, мат запрещён!\n"
+                f"🔇 Сообщение: <code>{censored}</code>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка фильтрации: {e}")
 
 # ====================== НАСТРОЙКА ======================
+if __name__ == "__main__":
+    # Тест фильтра
+    test = MatFilter()
+    print(test.check_message("Тест с словом хуй"))  # Должно вернуть True
+    print(test.process_message("Тест с словом хуй")) # Должно заменить мат
+    input("Нажмите Enter для запуска бота...")
+
 def setup_rp_handlers(dp):
     """Добавляет RP-роутер в диспетчер"""
     dp.include_router(rp_router)
