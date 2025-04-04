@@ -93,7 +93,7 @@ class Actions:
 
     # Список всех команд для проверки
     ALL_COMMANDS = (
-        set(INTIMATE_ACTIONS["добрые"].keys()) | 
+        set(INTIMATE_ACTIONS["добрые"].keys()) |
         set(INTIMATE_ACTIONS["нейтральные"].keys()) |  # Убедитесь, что здесь нет лишнего пробела
         set(INTIMATE_ACTIONS["злые"].keys())
     )
