@@ -16,6 +16,7 @@ from typing import Dict, Any
 rp_router = Router(name="rp_router")
 rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 
+
 # ====================== КОНФИГУРАЦИЯ ======================
 class Config:
     HP_FILE = "data/hp_data.txt"
@@ -28,6 +29,8 @@ class Config:
     HP_RECOVERY_TIME = 600  # 10 минут в секундах
     HP_RECOVERY_AMOUNT = 10
     DAILY_TOP_REWARD = 1  # +1 огонёк за топ1 за день
+
+
 # ====================== ДАННЫЕ ДЕЙСТВИЙ ======================
 class Actions:
     RP_ACTIONS = [
@@ -95,6 +98,7 @@ class Actions:
         set(INTIMATE_ACTIONS["злые"].keys())
     )
 
+
 # ====================== МОДЕЛЬ ДАННЫХ ======================
 class UserHPManager:
     _instance = None
@@ -154,7 +158,7 @@ class UserHPManager:
         new_hp = max(Config.MIN_HP, min(Config.MAX_HP, current_hp + hp_change))
         self.user_hp[username] = new_hp
         self.save_hp()
-        
+
         if new_hp <= 0 and username not in self.recovery_times:
             self.recovery_times[username] = time.time() + Config.HP_RECOVERY_TIME
 
@@ -186,9 +190,11 @@ class UserHPManager:
             return max(0, remaining)
         return 0
 
+
 # ====================== ИНИЦИАЛИЗАЦИЯ ======================
 router = Router()
 hp_manager = UserHPManager()
+
 
 # ====================== ХЭНДЛЕРЫ ======================
 class Handlers:
@@ -197,7 +203,7 @@ class Handlers:
         """Проверяет нулевое HP пользователя"""
         username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
         current_hp = hp_manager.get_user_hp(username)
-        
+
         if current_hp <= 0:
             recovery_time = hp_manager.get_recovery_time(username)
             if recovery_time > 0:
@@ -237,7 +243,7 @@ class Handlers:
         """Обработчик плача"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         await message.reply(
@@ -256,7 +262,7 @@ class Handlers:
         """Обработчик RP-действий"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         if not message.reply_to_message:
             await message.reply("Пожалуйста, ответьте на сообщение, чтобы использовать эту команду.")
             return
@@ -267,7 +273,7 @@ class Handlers:
 
         target_user = message.reply_to_message.from_user
         sender = message.from_user
-        
+
         if target_user.id == sender.id:
             await message.reply("Вы не можете использовать команды на себе!")
             await message.delete()
@@ -296,7 +302,7 @@ class Handlers:
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
             hp_manager.update_user_hp(sender_username, action_data["hp_change_sender"])
             hp_manager.set_cooldown(sender_username)
-            
+
             response = (
                 f"{sender_username} {command_past} {target_username} {additional_word}. "
                 f"{target_username} получает +{action_data['hp_change_target']} HP, "
@@ -307,7 +313,7 @@ class Handlers:
         elif command in Actions.INTIMATE_ACTIONS["злые"]:
             action_data = Actions.INTIMATE_ACTIONS["злые"][command]
             hp_manager.update_user_hp(target_username, action_data["hp_change_target"])
-            
+
             target_hp = hp_manager.get_user_hp(target_username)
             if target_hp <= 0:
                 hp_manager.recovery_times[target_username] = time.time() + Config.HP_RECOVERY_TIME
@@ -334,11 +340,11 @@ class Handlers:
         """Показывает текущее HP"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         sender = message.from_user
         sender_username = f"@{sender.username}" if sender.username else sender.first_name
         current_hp = hp_manager.get_user_hp(sender_username)
-        
+
         if hp_manager.check_hp_recovery(sender_username):
             current_hp = hp_manager.get_user_hp(sender_username)
             await message.reply(f"{sender_username}, ваше HP восстановлено на {Config.HP_RECOVERY_AMOUNT}. Текущее HP: {current_hp}.")
@@ -399,14 +405,15 @@ class Handlers:
         """Показывает список RP-действий"""
         if await Handlers.check_zero_hp(message):
             return
-            
+
         actions_list = "📋 Доступные RP-действия:\n\n"
         for category, actions in Actions.ALL_ACTIONS.items():
             actions_list += f"🔹 {category}:\n"
             actions_list += "\n".join(f"   - {action}" for action in actions)
             actions_list += "\n\n"
-        
+
         await message.reply(actions_list)
+
 
 # ====================== НАСТРОЙКА ======================
 # ====================== STATS MODULE ======================
@@ -415,12 +422,13 @@ STATS_STYLE = {
     "footer": "Используйте  для просмотра рейтинга"
 }
 
+
 class UserActivityTracker:
     def __init__(self):
         self.data = self._load_data()
         self._schedule_daily_reset()
         self.daily_top_users = {}  # Хранит топ пользователей за день
-    
+
     def _load_data(self) -> Dict[str, Any]:
         try:
             if os.path.exists(Config.USER_DATA_FILE):
@@ -435,7 +443,7 @@ class UserActivityTracker:
                             converted_data[username] = user_data
                         else:
                             converted_data[user_id] = user_data
-                    
+
                     # Добавляем недостающие поля
                     for user_data in converted_data.values():
                         if "hp" not in user_data:
@@ -446,16 +454,16 @@ class UserActivityTracker:
                             user_data["total_flames"] = 0
                         if "daily_top_count" not in user_data:
                             user_data["daily_top_count"] = 0
-                    
+
                     return defaultdict(self._default_user_data, converted_data)
-            
+
             # Если файла нет, создаем пустой словарь
             return defaultdict(self._default_user_data)
-        
+
         except (json.JSONDecodeError, IOError):
             # Если файл поврежден, создаем новый
             return defaultdict(self._default_user_data)
-    
+
     def _default_user_data(self) -> Dict[str, Any]:
         return {
             "daily_messages": 0,
@@ -471,14 +479,14 @@ class UserActivityTracker:
                 "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
             ]
         }
-    
+
     def _schedule_daily_reset(self) -> None:
         now = datetime.now()
         midnight = now.replace(hour=21, minute=0, second=0, microsecond=0)
         if now > midnight:
             midnight += timedelta(days=1)
         self.next_reset = midnight.timestamp()
-    
+
     def _check_reset(self) -> None:
         current_time = time.time()
         if current_time > self.next_reset:
@@ -490,24 +498,24 @@ class UserActivityTracker:
                     self.data[top_username]["daily_flames"] += Config.DAILY_TOP_REWARD
                     self.data[top_username]["total_flames"] += Config.DAILY_TOP_REWARD
                     self.data[top_username]["daily_top_count"] += 1
-            
+
             # Сбрасываем дневные сообщения
             for user_data in self.data.values():
                 user_data["daily_messages"] = 0
                 user_data["daily_flames"] = 0
-            
+
             self.daily_top_users = {}
             self._schedule_daily_reset()
             self._save_data()
-    
+
     def _save_data(self) -> None:
         # Создаем директорию если ее нет
         os.makedirs(os.path.dirname(Config.USER_DATA_FILE), exist_ok=True)
-        
+
         with open(Config.USER_DATA_FILE, "w", encoding='utf-8') as f:
             # Преобразуем defaultdict в обычный dict для сохранения
             json.dump(dict(self.data), f, ensure_ascii=False, indent=2)
-    
+
     def _load_hp_data(self) -> Dict[str, int]:
         hp_data = {}
         if os.path.exists(Config.HP_FILE):
@@ -523,73 +531,74 @@ class UserActivityTracker:
                             except ValueError:
                                 continue
         return hp_data
-    
+
     def record_activity(self, user: types.User) -> None:
         self._check_reset()
-        
+
         # Формируем username в формате @username
         username = f"@{user.username}" if user.username else f"@{user.first_name}"
-        
+
         # Если пользователя нет в данных, добавляем его
         if username not in self.data:
             self.data[username] = self._default_user_data()
             self.data[username]["username"] = username  # Сохраняем username
-        
+
         user_data = self.data[username]
         user_data["daily_messages"] += 1
         user_data["total_messages"] += 1
         user_data["last_active"] = time.time()
-        
+
         # Обновляем топ дня
         if username not in self.daily_top_users:
             self.daily_top_users[username] = 0
         self.daily_top_users[username] += 1
-        
+
         # Загружаем и обновляем HP
         hp_data = self._load_hp_data()
         user_data["hp"] = hp_data.get(username, 0)
-        
+
         self._save_data()
-    
+
     def get_user_stats(self, user: types.User) -> Dict[str, Any]:
         username = f"@{user.username}" if user.username else f"@{user.first_name}"
-        
+
         if username not in self.data:
             return None
-        
+
         hp_data = self._load_hp_data()
         self.data[username]["hp"] = hp_data.get(username, 0)
-        
+
         return self.data[username]
 
     def get_top_users(self, count: int = 10) -> list:
         self._check_reset()
-        
+
         # Создаем список пользователей с их статистикой
         user_list = []
         for username, data in self.data.items():
             if not isinstance(data, dict):
                 continue
-                
+       
             user_list.append({
                 "username": username,
                 "messages": data.get("daily_messages", 0),
                 "hp": data.get("hp", 0),
                 "flames": data.get("total_flames", 0)
             })
-        
+
         # Сортируем по количеству сообщений (от большего к меньшему)
         sorted_users = sorted(user_list, key=lambda x: x["messages"], reverse=True)
-        
+
         # Возвращаем топ N пользователей
         return sorted_users[:count]
+
 
 def format_top_message(top_users: list) -> str:
     if not top_users:
         return "❌ Нет данных для отображения топа"
-    
+
     message = ["🏆 <b>ТОП УЧАСТНИКОВ</b> 🏆", STATS_STYLE["divider"]]
-    
+
     for i, user in enumerate(top_users, 1):
         username = user.get("username", "Неизвестный пользователь")
         flames = "🔥" * user.get("flames", 0)
@@ -599,9 +608,10 @@ def format_top_message(top_users: list) -> str:
             f"❤️ {user.get('hp', 0)} | "
             f"{flames}"
         )
-    
+
     message.append(STATS_STYLE["footer"])
     return "\n".join(message)
+
 
 def format_user_stats(username: str, stats: Dict[str, Any]) -> str:
     flames = "🔥" * stats.get("total_flames", 0)
@@ -616,21 +626,24 @@ def format_user_stats(username: str, stats: Dict[str, Any]) -> str:
         f"{STATS_STYLE['footer']}"
     )
 
+
 async def show_stats(message: types.Message):
     tracker = UserActivityTracker()
     stats = tracker.get_user_stats(message.from_user)
-    
+
     if not stats:
         await message.reply("❌ Статистика не найдена!")
         return
-    
+
     username = f"@{message.from_user.username}" if message.from_user.username else f"@{message.from_user.first_name}"
     formatted_stats = format_user_stats(username, stats)
     await message.reply(formatted_stats, parse_mode="HTML")
 
+
 @rp_router.message(F.text.lower() == "профиль")
 async def show_profile(message: types.Message):
     await show_stats(message)
+
 
 @rp_router.message(F.text.lower() == "топ")
 async def show_top_stats(message: types.Message):
@@ -639,10 +652,12 @@ async def show_top_stats(message: types.Message):
     formatted_top = format_top_message(top_users)
     await message.reply(formatted_top, parse_mode="HTML")
 
+
 @rp_router.message()
 async def track_message_activity(message: types.Message):
     tracker = UserActivityTracker()
     tracker.record_activity(message.from_user)
+
 
 # ====================== НАСТРОЙКА ======================
 def setup_rp_handlers(dp):
