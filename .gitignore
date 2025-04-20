@@ -4,6 +4,8 @@
 
 # files
 *.log
+data
+subscribed_users.txt
 
 # python
 __pycache__
