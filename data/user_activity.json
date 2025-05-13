@@ -45,9 +45,9 @@
     "username": "@Mr_he1per"
   },
   "@Likssiz": {
-    "daily_messages": 7,
-    "total_messages": 7,
-    "last_active": 1743788621.8559937,
+    "daily_messages": 20,
+    "total_messages": 20,
+    "last_active": 1745830136.575354,
     "hp": 0,
     "daily_flames": 0,
     "total_flames": 0,
@@ -105,9 +105,9 @@
     "username": "@☨"
   },
   "@pinkweeyy": {
-    "daily_messages": 2,
-    "total_messages": 2,
-    "last_active": 1743788368.7741964,
+    "daily_messages": 16,
+    "total_messages": 16,
+    "last_active": 1745830236.4592395,
     "hp": 0,
     "daily_flames": 0,
     "total_flames": 0,
@@ -163,5 +163,35 @@
       "https://99px.ru/sstorage/53/2024/11/mid_364490_541294.jpg"
     ],
     "username": "@AIMUND"
+  },
+  "@aabujinn": {
+    "daily_messages": 12,
+    "total_messages": 12,
+    "last_active": 1745830249.1608686,
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "daily_top_count": 0,
+    "reward_level": "low",
+    "current_bg": "default_bg.jpg",
+    "unlocked_bgs": [
+      "default_bg.jpg"
+    ],
+    "username": "@aabujinn"
+  },
+  "@selfmurderr": {
+    "daily_messages": 1,
+    "total_messages": 1,
+    "last_active": 1745830212.5796707,
+    "hp": 0,
+    "daily_flames": 0,
+    "total_flames": 0,
+    "daily_top_count": 0,
+    "reward_level": "low",
+    "current_bg": "default_bg.jpg",
+    "unlocked_bgs": [
+      "default_bg.jpg"
+    ],
+    "username": "@selfmurderr"
   }
 }
