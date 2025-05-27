@@ -1,536 +1,815 @@
-# rp_module_refactored.py
 import asyncio
+
 import time
-from datetime import datetime, timedelta
+
 import random
+
 import logging
-from typing import Dict, Any, Optional
+
+from typing import Dict, Any, Optional, List, Tuple, Set
+
 import aiosqlite
-from group_stat import setup_stat_handlers, ProfileManager
+
 from aiogram import Router, types, F, Bot
-from aiogram.enums import ChatType
+
+from aiogram.enums import ChatType, ParseMode, MessageEntityType
+
 from aiogram.filters import Command
+
 from aiogram.exceptions import TelegramAPIError
+
 from contextlib import suppress
-from aiogram.enums import ParseMode
-from group_stat import setup_stat_handlers
 
-# Локальные импорты
-import database as db # Используем наш модуль БД
+import database as db
 
-# Импортируем setup_stat_handlers, предполагая, что он существует в group_stat
-# !!! Важно: Избегаем `import *` !!!
-# Замени 'setup_stat_handlers' и 'group_stat' на реальные имена, если они другие
 try:
-    # Пытаемся импортировать нужную функцию
-    from group_stat import setup_stat_handlers 
-    # Если нужны еще функции/классы из group_stat, импортируй их явно здесь
-    # from group_stat import some_other_function, SomeStatClass 
-    HAS_GROUP_STAT = True
+
+    from group_stat import ProfileManager
+
+    HAS_PROFILE_MANAGER = True
+
 except ImportError:
-    logging.warning("Module 'group_stat' or 'setup_stat_handlers' not found. Statistics functionality might be limited.")
-    HAS_GROUP_STAT = False
-    # Создаем заглушку, если модуль не найден, чтобы код ниже не падал
-    def setup_stat_handlers(dp): 
-         logging.warning("Stat handlers setup skipped because group_stat module is missing.")
-         return dp 
 
+    logging.critical("CRITICAL: Module 'group_stat' or 'ProfileManager' not found. RP functionality will be severely impaired or non-functional.")
 
-logger = logging.getLogger(__name__) # Используем имя модуля для логгера
+    HAS_PROFILE_MANAGER = False
 
-# Создаем отдельный роутер для RP
+    class ProfileManager:
+
+        async def get_rp_stats(self, user_id: int) -> Dict[str, Any]:
+
+            return {'hp': RPConfig.DEFAULT_HP, 'recovery_end_ts': 0, 'heal_cooldown_ts': 0}
+
+        async def update_rp_stats_field(self, user_id: int, **kwargs: Any) -> None:
+
+            pass
+
+logger = logging.getLogger(__name__)
+
 rp_router = Router(name="rp_module")
-# Фильтр на тип чата для всех хендлеров этого роутера
+
 rp_router.message.filter(F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 
-
-# ====================== КОНФИГУРАЦИЯ RP ======================
 class RPConfig:
-    DEFAULT_HP = 100
-    MAX_HP = 150
-    MIN_HP = 0
-    HEAL_COOLDOWN_SECONDS = 1800 # 30 минут в секундах (увеличил для баланса)
-    HP_RECOVERY_TIME_SECONDS = 600 # 10 минут в секундах до восстановления после 0 HP
-    HP_RECOVERY_AMOUNT = 25 # Количество восстанавливаемого HP (увеличил)
-    # DAILY_TOP_REWARD = 1 # Награда за топ дня (если будет функционал топов)
 
+    DEFAULT_HP: int = 100
 
-# ====================== ДАННЫЕ ДЕЙСТВИЙ ======================
-# Оставляем как есть, это статичные данные
+    MAX_HP: int = 150
+
+    MIN_HP: int = 0
+
+    HEAL_COOLDOWN_SECONDS: int = 1800
+
+    HP_RECOVERY_TIME_SECONDS: int = 600
+
+    HP_RECOVERY_AMOUNT: int = 25
+
 class RPActions:
-    # ... (Весь класс RPActions без изменений) ...
-    RP_ACTIONS = [
-        "ударить", "поцеловать", "обнять", "укусить",
-        "погладить", "толкнуть", "ущипнуть", "шлепнуть", "пощечина",
-        "пнуть", "схватить", "заплакать", "засмеяться",
-        "удивиться", "разозлиться", "испугаться", "подмигнуть", "шепнуть",
-        "издеваться"
-    ]
 
-    INTIMATE_ACTIONS = {
+    INTIMATE_ACTIONS: Dict[str, Dict[str, Dict[str, int]]] = {
+
         "добрые": {
-            "поцеловать": {"hp_change_target": +10, "hp_change_sender": +1}, # Лечащий не должен сильно терять HP
-            "обнять": {"hp_change_target": +15, "hp_change_sender": +5}, # Обьятия полезны обоим
+
+            "поцеловать": {"hp_change_target": +10, "hp_change_sender": +1},
+
+            "обнять": {"hp_change_target": +15, "hp_change_sender": +5},
+
             "погладить": {"hp_change_target": +5, "hp_change_sender": +2},
+
             "романтический поцелуй": {"hp_change_target": +20, "hp_change_sender": +10},
-            "трахнуть": {"hp_change_target": +30, "hp_change_sender": +15}, # Сомнительное действие для HP :)
+
+            "трахнуть": {"hp_change_target": +30, "hp_change_sender": +15},
+
             "поцеловать в щёчку": {"hp_change_target": +7, "hp_change_sender": +3},
+
             "прижать к себе": {"hp_change_target": +12, "hp_change_sender": +6},
-            "покормить": {"hp_change_target": +9, "hp_change_sender": -2}, # Кормящий не должен сильно страдать
+
+            "покормить": {"hp_change_target": +9, "hp_change_sender": -2},
+
             "напоить": {"hp_change_target": +6, "hp_change_sender": -1},
-            "сделать массаж": {"hp_change_target": +15, "hp_change_sender": +3}, # Массажист тоже получает удовольствие :)
+
+            "сделать массаж": {"hp_change_target": +15, "hp_change_sender": +3},
+
             "спеть песню": {"hp_change_target": +5, "hp_change_sender": +1},
-            "подарить цветы": {"hp_change_target": +12, "hp_change_sender": 0}, # Дарение не должно отнимать HP
-            "подрочить": {"hp_change_target": +12, "hp_change_sender": +6}, # Взаимное удовольствие? :)
-            "полечить": {"hp_change_target": +25, "hp_change_sender": -5}, # Новое сильное лечащее действие
+
+            "подарить цветы": {"hp_change_target": +12, "hp_change_sender": 0},
+
+            "подрочить": {"hp_change_target": +12, "hp_change_sender": +6},
+
+            "полечить": {"hp_change_target": +25, "hp_change_sender": -5},
+
         },
+
         "нейтральные": {
+
             "толкнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "схватить": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "помахать": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "кивнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "похлопать": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "постучать": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "попрощаться": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "шепнуть": {"hp_change_target": 0, "hp_change_sender": 0},
+
             "почесать спинку": {"hp_change_target": +5, "hp_change_sender": 0},
-            "успокоить": {"hp_change_target": +5, "hp_change_sender": +1}, # Новое нейтрально-доброе действие
+
+            "успокоить": {"hp_change_target": +5, "hp_change_sender": +1},
+
+            "заплакать": {}, "засмеяться": {}, "удивиться": {}, "подмигнуть": {},
+
         },
+
         "злые": {
-            "уебать": {"hp_change_target": -20, "hp_change_sender": -2}, # Отдача при сильном ударе
-            "схватить за шею": {"hp_change_target": -25, "hp_change_sender": -3}, # Рискованно для атакующего
-            "ударить": {"hp_change_target": -10, "hp_change_sender": -1}, # Небольшая отдача
+
+            "уебать": {"hp_change_target": -20, "hp_change_sender": -2},
+
+            "схватить за шею": {"hp_change_target": -25, "hp_change_sender": -3},
+
+            "ударить": {"hp_change_target": -10, "hp_change_sender": -1},
+
             "укусить": {"hp_change_target": -15, "hp_change_sender": 0},
+
             "шлепнуть": {"hp_change_target": -8, "hp_change_sender": 0},
+
             "пощечина": {"hp_change_target": -12, "hp_change_sender": -1},
+
             "пнуть": {"hp_change_target": -10, "hp_change_sender": 0},
+
             "ущипнуть": {"hp_change_target": -7, "hp_change_sender": 0},
+
             "толкнуть сильно": {"hp_change_target": -9, "hp_change_sender": -1},
+
             "обозвать": {"hp_change_target": -5, "hp_change_sender": 0},
+
             "плюнуть": {"hp_change_target": -6, "hp_change_sender": 0},
-            "превратить": {"hp_change_target": -80, "hp_change_sender": -10}, # Мощное, но затратное
-            "обидеть": {"hp_change_target": -7, "hp_change_sender": 0}, # Новое злое действие
+
+            "превратить": {"hp_change_target": -80, "hp_change_sender": -10},
+
+            "обидеть": {"hp_change_target": -7, "hp_change_sender": 0},
+
+            "разозлиться": {"hp_change_target": -2, "hp_change_sender": -1},
+
+            "испугаться": {"hp_change_target": -1, "hp_change_sender": 0},
+
+            "издеваться": {"hp_change_target": -10, "hp_change_sender": -1},
+
         }
+
     }
 
-    # Собираем все действия в один словарь для удобного поиска данных
-    ALL_ACTION_DATA = {}
-    for category_actions in INTIMATE_ACTIONS.values():
-        ALL_ACTION_DATA.update(category_actions)
+    ALL_ACTION_DATA: Dict[str, Dict[str, int]] = {
 
-    # Полный список всех команд для парсинга и /rp_commands
-    ALL_ACTIONS_LIST_BY_CATEGORY = {
+        action: data if data else {}
+
+        for category_actions in INTIMATE_ACTIONS.values()
+
+        for action, data in category_actions.items()
+
+    }
+
+    SORTED_COMMANDS_FOR_PARSING: List[str] = sorted(
+
+        ALL_ACTION_DATA.keys(), key=len, reverse=True
+
+    )
+
+    ALL_ACTIONS_LIST_BY_CATEGORY: Dict[str, List[str]] = {
+
         "Добрые действия ❤️": list(INTIMATE_ACTIONS["добрые"].keys()),
+
         "Нейтральные действия 😐": list(INTIMATE_ACTIONS["нейтральные"].keys()),
+
         "Злые действия 💀": list(INTIMATE_ACTIONS["злые"].keys())
+
     }
-    # Множество всех команд для быстрой проверки
-    ALL_COMMANDS_SET = set(ALL_ACTION_DATA.keys())
 
+def get_user_display_name(user: types.User) -> str:
 
-# ====================== Утилиты RP ======================
+    name = f"@{user.username}" if user.username else user.full_name
 
-async def get_user_display_name(user: types.User) -> str:
-    """Возвращает имя пользователя для отображения (@username или first_name)."""
-    return f"@{user.username}" if user.username else user.full_name # Используем full_name для лучшего отображения
+    return name
 
-async def update_hp_and_notify(bot: Bot, chat_id: int, user_id: int, hp_change: int, reason: str = "") -> int:
-    """Обновляет HP пользователя в БД, проверяет границы и возвращает новое HP."""
-    current_stats = await db.get_rp_stats(user_id)
-    current_hp = current_stats.get('hp', RPConfig.DEFAULT_HP)
-    
+async def _update_user_hp(
+
+    profile_manager: ProfileManager,
+
+    user_id: int,
+
+    hp_change: int
+
+) -> Tuple[int, bool]:
+
+    stats = await profile_manager.get_rp_stats(user_id)
+
+    current_hp = stats.get('hp', RPConfig.DEFAULT_HP)
+
     new_hp = max(RPConfig.MIN_HP, min(RPConfig.MAX_HP, current_hp + hp_change))
-    
-    await db.update_rp_stats(user_id, hp=new_hp)
-    
-    # Проверяем, не достигло ли HP нуля
-    if new_hp <= 0 and current_hp > 0: # Только если HP стало <= 0 в этот раз
+
+    knocked_out_this_time = False
+
+    update_fields = {'hp': new_hp}
+
+    if new_hp <= RPConfig.MIN_HP and current_hp > RPConfig.MIN_HP:
+
         recovery_ts = time.time() + RPConfig.HP_RECOVERY_TIME_SECONDS
-        await db.update_rp_stats(user_id, recovery_end_ts=recovery_ts)
-        logger.info(f"User {user_id} HP dropped to {new_hp}. Recovery set for {RPConfig.HP_RECOVERY_TIME_SECONDS}s.")
-        # Оповещение о потере сознания будет в основном хендлере
-    
-    return new_hp
 
-def get_command_from_text(text: Optional[str]) -> tuple[Optional[str], str]:
-    """Извлекает первую RP-команду и остальной текст."""
-    if text is None:
+        update_fields['recovery_end_ts'] = recovery_ts
+
+        knocked_out_this_time = True
+
+        logger.info(f"User {user_id} HP dropped to {new_hp}. Recovery timer set for {RPConfig.HP_RECOVERY_TIME_SECONDS}s.")
+
+    elif new_hp > RPConfig.MIN_HP and stats.get('recovery_end_ts', 0) > 0 :
+
+        update_fields['recovery_end_ts'] = 0
+
+        logger.info(f"User {user_id} HP recovered above {RPConfig.MIN_HP}. Recovery timer reset.")
+
+    await profile_manager.update_rp_stats_field(user_id, **update_fields)
+
+    return new_hp, knocked_out_this_time
+
+def get_command_from_text(text: Optional[str]) -> Tuple[Optional[str], str]:
+
+    if not text:
+
         return None, ""
+
     text_lower = text.lower()
-    # Ищем самое длинное совпадающее действие сначала, чтобы избежать частичных совпадений
-    # Например, чтобы "поцеловать в щёчку" нашлось раньше, чем "поцеловать"
-    matched_command = None
-    for cmd in sorted(RPActions.ALL_COMMANDS_SET, key=len, reverse=True):
-        if text_lower.startswith(cmd):
-            matched_command = cmd
-            break # Нашли самое длинное совпадение
 
-    if matched_command:
-        additional_text = text[len(matched_command):].strip()
-        return matched_command, additional_text
-    else:
-        return None, ""
+    for cmd in RPActions.SORTED_COMMANDS_FOR_PARSING:
+
+        if text_lower.startswith(cmd):
+
+            if len(text_lower) == len(cmd) or text_lower[len(cmd)].isspace():
+
+                additional_text = text[len(cmd):].strip()
+
+                return cmd, additional_text
+
+    return None, ""
 
 def format_timedelta(seconds: float) -> str:
-    """Форматирует секунды в строку 'X мин Y сек'."""
+
     if seconds <= 0:
-        return "готово"
+
+        return "уже можно"
+
     total_seconds = int(seconds)
+
     minutes = total_seconds // 60
+
     secs = total_seconds % 60
-    if minutes > 0:
+
+    if minutes > 0 and secs > 0:
+
         return f"{minutes} мин {secs} сек"
-    else:
-        return f"{secs} сек"
 
+    elif minutes > 0:
 
-# ====================== ПРОВЕРКА СОСТОЯНИЯ ======================
+        return f"{minutes} мин"
 
-async def check_user_rp_state(message: types.Message) -> bool:
-    """
-    Проверяет, может ли пользователь выполнять RP действия (HP > 0).
-    Отправляет ЛС и удаляет сообщение в группе, если не может.
-    Возвращает True, если действие ЗАБЛОКИРОВАНО, False - если разрешено.
-    """
-    user = message.from_user
-    # Убедимся, что пользователь есть в основной таблице users
-    await db.ensure_user(user.id, user.username, user.first_name)
-    
-    stats = await db.get_rp_stats(user.id)
+    return f"{secs} сек"
+
+async def check_and_notify_rp_state(
+
+    user: types.User,
+
+    bot: Bot,
+
+    profile_manager: ProfileManager,
+
+    message_to_delete_on_block: Optional[types.Message] = None
+
+) -> bool:
+
+    if not HAS_PROFILE_MANAGER:
+
+        logger.error(f"Cannot check RP state for user {user.id} due to missing ProfileManager.")
+
+        try:
+
+            await bot.send_message(user.id, "⚠️ Произошла ошибка с модулем профилей, RP-действия временно недоступны.")
+
+        except TelegramAPIError:
+
+            pass
+
+        if message_to_delete_on_block:
+
+             with suppress(TelegramAPIError): await message_to_delete_on_block.delete()
+
+        return True
+
+    stats = await profile_manager.get_rp_stats(user.id)
+
     current_hp = stats.get('hp', RPConfig.DEFAULT_HP)
+
     recovery_ts = stats.get('recovery_end_ts', 0)
+
     now = time.time()
 
-    if current_hp <= 0:
-        remaining_recovery = recovery_ts - now
-        if remaining_recovery > 0:
+    if current_hp <= RPConfig.MIN_HP:
+
+        if recovery_ts > 0 and now < recovery_ts:
+
+            remaining_recovery = recovery_ts - now
+
             time_str = format_timedelta(remaining_recovery)
+
             try:
-                # Отправляем ЛС пользователю
-                await message.bot.send_message(
+
+                await bot.send_message(
+
                     user.id,
-                    f"Ваше HP равно {current_hp}. Вы пока не можете совершать действия. "
-                    f"Автоматическое восстановление {RPConfig.HP_RECOVERY_AMOUNT} HP через {time_str}."
+
+                    f"Вы сейчас не можете совершать RP-действия (HP: {current_hp}).\n"
+
+                    f"Автоматическое восстановление {RPConfig.HP_RECOVERY_AMOUNT} HP через: {time_str}."
+
                 )
+
             except TelegramAPIError as e:
-                 # Ошибка может быть, если юзер не начал диалог с ботом или заблокировал его
-                 logger.warning(f"Could not send RP state notification to user {user.id}: {e.message}")
-                 # Можно отправить короткое сообщение в группу, если ЛС не удалось
-                 # await message.reply(f"{await get_user_display_name(user)}, вы пока отдыхаете (HP: {current_hp})")
-            
-            # Удаляем сообщение пользователя в группе
-            with suppress(TelegramAPIError): # Игнорируем ошибки при удалении
-                await message.delete()
-            return True # Действие заблокировано
-        else:
-             # Время восстановления прошло, но HP еще не восстановлено (случай редкий, но возможный)
-             # Восстанавливаем HP прямо здесь
-             recovered_hp = await update_hp_and_notify(message.bot, message.chat.id, user.id, RPConfig.HP_RECOVERY_AMOUNT)
-             await db.update_rp_stats(user.id, recovery_end_ts=0) # Сбрасываем таймер восстановления
-             logger.info(f"User {user.id} HP auto-recovered to {recovered_hp} upon action attempt.")
-             try:
-                 await message.bot.send_message(user.id, f"Ваше HP восстановлено до {recovered_hp}! Можете действовать.")
-             except TelegramAPIError: pass # Игнорим ошибку ЛС
-             return False # Действие разрешено после восстановления
-             
-    return False # HP > 0, действие разрешено
 
+                logger.warning(f"Could not send RP state PM to user {user.id}: {e}")
 
-# ====================== ОСНОВНЫЕ ХЭНДЛЕРЫ RP ======================
+                if message_to_delete_on_block:
 
-@rp_router.message(lambda msg: get_command_from_text(msg.text)[0] is not None)
-async def handle_rp_action(message: types.Message):
-    """Обработчик всех RP-действий, инициируемых текстом."""
-    if await check_user_rp_state(message):
-        return # Пользователь не может действовать
+                    await message_to_delete_on_block.reply(
 
-    if not message.reply_to_message:
-        await message.reply("⚠️ Пожалуйста, ответьте на сообщение пользователя, к которому хотите применить действие.")
+                        f"{get_user_display_name(user)}, вы пока не можете действовать (HP: {current_hp}). "
+
+                        f"Восстановление через {time_str}."
+
+                    )
+
+            if message_to_delete_on_block:
+
+                with suppress(TelegramAPIError): await message_to_delete_on_block.delete()
+
+            return True
+
+        elif recovery_ts == 0 or now >= recovery_ts:
+
+            recovered_hp, _ = await _update_user_hp(profile_manager, user.id, RPConfig.HP_RECOVERY_AMOUNT)
+
+            logger.info(f"User {user.id} HP auto-recovered to {recovered_hp} upon action attempt.")
+
+            try:
+
+                await bot.send_message(user.id, f"Ваше HP восстановлено до {recovered_hp}! Теперь вы можете совершать RP-действия.")
+
+            except TelegramAPIError: pass
+
+            return False
+
+    return False
+
+async def _process_rp_action(
+
+    message: types.Message,
+
+    bot: Bot,
+
+    profile_manager: ProfileManager,
+
+    command_text_payload: str
+
+):
+
+    if not HAS_PROFILE_MANAGER:
+
+        await message.reply("⚠️ RP-модуль временно недоступен из-за внутренней ошибки конфигурации.")
+
         return
 
-    command, additional_text = get_command_from_text(message.text)
-    if not command: # На всякий случай, хотя lambda фильтр уже проверил
-        return
-
-    target_user = message.reply_to_message.from_user
     sender_user = message.from_user
 
-    # Проверка на самого себя
-    if target_user.id == sender_user.id:
-        await message.reply("🤦 Вы не можете использовать команды на себе!")
-        with suppress(TelegramAPIError): await message.delete()
+    if not sender_user:
+
+        logger.warning("Cannot identify sender for an RP action.")
+
         return
-        
-    # Проверка на бота (самого себя)
-    if target_user.id == message.bot.id:
-         await message.reply("🤖 Не трогайте бота! Он вам не игрушка.")
-         with suppress(TelegramAPIError): await message.delete()
-         return
 
-    # Получаем имена для отображения
-    target_name = await get_user_display_name(target_user)
-    sender_name = await get_user_display_name(sender_user)
-    
-    # Убедимся, что оба пользователя есть в БД
-    await db.ensure_user(sender_user.id, sender_user.username, sender_user.first_name)
-    await db.ensure_user(target_user.id, target_user.username, target_user.first_name)
+    if await check_and_notify_rp_state(sender_user, bot, profile_manager, message_to_delete_on_block=message):
 
-    action_data = RPActions.ALL_ACTION_DATA.get(command)
-    if not action_data: # Если команда как-то прошла фильтр, но данных нет
-        logger.warning(f"No action data found for command '{command}' triggered by user {sender_user.id}")
-        return 
+        return
 
-    # Определяем категорию действия для кулдауна
-    action_category = None
-    if command in RPActions.INTIMATE_ACTIONS["добрые"]:
-        action_category = "добрые"
-    elif command in RPActions.INTIMATE_ACTIONS["злые"]:
-        action_category = "злые"
-    elif command in RPActions.INTIMATE_ACTIONS["нейтральные"]:
-         action_category = "нейтральные"
+    target_user: Optional[types.User] = None
 
-    # --- Проверка кулдауна для лечащих действий ---
+    if message.reply_to_message and message.reply_to_message.from_user:
+
+        target_user = message.reply_to_message.from_user
+
+    else:
+
+        entities = message.entities or []
+
+        for entity in entities:
+
+            if entity.type == MessageEntityType.TEXT_MENTION and entity.user:
+
+                target_user = entity.user
+
+                break
+
+    if not target_user:
+
+        await message.reply(
+
+            "⚠️ Укажите цель: ответьте на сообщение пользователя или упомяните его (@ИмяПользователя так, чтобы он был кликабелен)."
+
+        )
+
+        return
+
+    command, additional_text = get_command_from_text(command_text_payload)
+
+    if not command:
+
+        return
+
+    if target_user.id == sender_user.id:
+
+        await message.reply("🤦 Вы не можете использовать RP-команды на себе!")
+
+        with suppress(TelegramAPIError): await message.delete()
+
+        return
+
+    if target_user.id == bot.id:
+
+        await message.reply(f"🤖 Нельзя применять RP-действия ко мне, {sender_user.first_name}!")
+
+        with suppress(TelegramAPIError): await message.delete()
+
+        return
+
+    if target_user.is_bot:
+
+        await message.reply("👻 Действия на других ботов не имеют смысла.")
+
+        with suppress(TelegramAPIError): await message.delete()
+
+        return
+
+    sender_name = get_user_display_name(sender_user)
+
+    target_name = get_user_display_name(target_user)
+
+    action_data = RPActions.ALL_ACTION_DATA.get(command, {})
+
+    action_category = next((cat for cat, cmds in RPActions.INTIMATE_ACTIONS.items() if command in cmds), None)
+
     if action_category == "добрые" and action_data.get("hp_change_target", 0) > 0:
-        sender_stats = await db.get_rp_stats(sender_user.id)
+
+        sender_stats = await profile_manager.get_rp_stats(sender_user.id)
+
         heal_cd_ts = sender_stats.get('heal_cooldown_ts', 0)
+
         now = time.time()
+
         if now < heal_cd_ts:
-            remaining_cd = heal_cd_ts - now
-            time_str = format_timedelta(remaining_cd)
+
+            remaining_cd_str = format_timedelta(heal_cd_ts - now)
+
             await message.reply(
-                f"{sender_name}, лечащие команды можно использовать раз в {format_timedelta(RPConfig.HEAL_COOLDOWN_SECONDS)}. "
-                f"Подождите еще {time_str}."
+
+                f"{sender_name}, вы сможете снова использовать лечащие команды через {remaining_cd_str}."
+
             )
+
             with suppress(TelegramAPIError): await message.delete()
+
             return
+
         else:
-             # Устанавливаем новый кулдаун
-             new_cd_ts = now + RPConfig.HEAL_COOLDOWN_SECONDS
-             await db.update_rp_stats(sender_user.id, heal_cooldown_ts=new_cd_ts)
 
+            await profile_manager.update_rp_stats_field(
 
-    # --- Применение изменений HP ---
-    hp_change_target = action_data.get("hp_change_target", 0)
-    hp_change_sender = action_data.get("hp_change_sender", 0)
+                sender_user.id, heal_cooldown_ts=now + RPConfig.HEAL_COOLDOWN_SECONDS
 
-    new_target_hp = current_target_hp = (await db.get_rp_stats(target_user.id)).get('hp', RPConfig.DEFAULT_HP)
-    new_sender_hp = current_sender_hp = (await db.get_rp_stats(sender_user.id)).get('hp', RPConfig.DEFAULT_HP)
+            )
 
+    hp_change_target_val = action_data.get("hp_change_target", 0)
 
-    if hp_change_target != 0:
-        new_target_hp = await update_hp_and_notify(message.bot, message.chat.id, target_user.id, hp_change_target)
+    hp_change_sender_val = action_data.get("hp_change_sender", 0)
 
-    if hp_change_sender != 0:
-        new_sender_hp = await update_hp_and_notify(message.bot, message.chat.id, sender_user.id, hp_change_sender)
+    target_initial_stats = await profile_manager.get_rp_stats(target_user.id)
 
-    # --- Формирование ответа ---
-    # Простое преобразование в прошедшее время (можно улучшить)
-    if command.endswith("ть"):
-        command_past = command[:-2] + random.choice(["л", "ла"]) # Добавим случайный род
-    elif command.endswith("ться"):
-         command_past = command[:-3] + "ся" # Например, "засмеяться" -> "засмеялся"
-    else:
-        command_past = command # Если не глагол на -ть/-ться
+    target_current_hp_before_action = target_initial_stats.get('hp', RPConfig.DEFAULT_HP)
 
-    response_parts = [f"{sender_name} {command_past}"]
+    if target_current_hp_before_action <= RPConfig.MIN_HP and
+
+       hp_change_target_val < 0 and
+
+       command != "превратить":
+
+        await message.reply(f"{target_name} уже без сознания. Зачем же его мучить еще больше?", parse_mode=ParseMode.HTML)
+
+        with suppress(TelegramAPIError): await message.delete()
+
+        return
+
+    new_target_hp, target_knocked_out = (target_current_hp_before_action, False)
+
+    if hp_change_target_val != 0:
+
+        new_target_hp, target_knocked_out = await _update_user_hp(profile_manager, target_user.id, hp_change_target_val)
+
+    new_sender_hp, sender_knocked_out = await _update_user_hp(profile_manager, sender_user.id, hp_change_sender_val)
+
+    command_past = command
+
+    verb_ending_map = {"ть": "л", "ться": "лся"}
+
+    for infinitive_ending, past_ending_male in verb_ending_map.items():
+
+        if command.endswith(infinitive_ending):
+
+            base = command[:-len(infinitive_ending)]
+
+            command_past = base + random.choice([past_ending_male, base + "ла"])
+
+            break
+
+    response_text = f"{sender_name} {command_past} {target_name}"
+
     if additional_text:
-         response_parts.append(f"{target_name} {additional_text}")
-    else:
-         response_parts.append(target_name)
 
-    # Добавляем информацию об изменении HP
-    hp_info = []
-    if hp_change_target > 0:
-        hp_info.append(f"{target_name} <b style='color:green;'>+{hp_change_target} HP</b>")
-    elif hp_change_target < 0:
-        hp_info.append(f"{target_name} <b style='color:red;'>{hp_change_target} HP</b>")
+        response_text += f" {additional_text}"
 
-    if hp_change_sender > 0:
-        hp_info.append(f"{sender_name} <b style='color:green;'>+{hp_change_sender} HP</b>")
-    elif hp_change_sender < 0:
-        hp_info.append(f"{sender_name} <b style='color:red;'>{hp_change_sender} HP</b>")
-        
-    if hp_info:
-         response_parts.append(f"({', '.join(hp_info)})")
+    hp_report_parts = []
 
-    # Финальное сообщение об HP
-    final_hp_info = []
-    if new_target_hp <= 0 and current_target_hp > 0: # Если цель потеряла сознание в этот раз
-         final_hp_info.append(f"{target_name} 😵 теряет сознание! (Восстановление через {format_timedelta(RPConfig.HP_RECOVERY_TIME_SECONDS)})")
-    elif hp_change_target != 0: # Показываем HP цели, если оно менялось
-         final_hp_info.append(f"HP {target_name}: {new_target_hp}/{RPConfig.MAX_HP}")
+    if hp_change_target_val > 0: hp_report_parts.append(f"{target_name} <b style='color:green;'>+{hp_change_target_val} HP</b>")
 
-    if hp_change_sender != 0: # Показываем HP отправителя, если оно менялось
-        final_hp_info.append(f"HP {sender_name}: {new_sender_hp}/{RPConfig.MAX_HP}")
-        
-    if final_hp_info:
-         response_parts.append(f"\n{', '.join(final_hp_info)}")
+    elif hp_change_target_val < 0: hp_report_parts.append(f"{target_name} <b style='color:red;'>{hp_change_target_val} HP</b>")
 
+    if hp_change_sender_val > 0: hp_report_parts.append(f"{sender_name} <b style='color:green;'>+{hp_change_sender_val} HP</b>")
 
-    response_text = " ".join(response_parts)
+    elif hp_change_sender_val < 0: hp_report_parts.append(f"{sender_name} <b style='color:red;'>{hp_change_sender_val} HP</b>")
+
+    if hp_report_parts:
+
+        response_text += f"\n({', '.join(hp_report_parts)})"
+
+    status_lines = []
+
+    if target_knocked_out:
+
+        status_lines.append(f"😵 {target_name} теряет сознание! (Восстановление через {format_timedelta(RPConfig.HP_RECOVERY_TIME_SECONDS)})")
+
+    elif hp_change_target_val != 0 :
+
+        status_lines.append(f"HP {target_name}: {new_target_hp}/{RPConfig.MAX_HP}")
+
+    if hp_change_sender_val != 0 or new_sender_hp < RPConfig.MAX_HP :
+
+        status_lines.append(f"HP {sender_name}: {new_sender_hp}/{RPConfig.MAX_HP}")
+
+    if sender_knocked_out:
+
+         status_lines.append(f"😵 {sender_name} перестарался и теряет сознание! (Восстановление через {format_timedelta(RPConfig.HP_RECOVERY_TIME_SECONDS)})")
+
+    if status_lines:
+
+        response_text += "\n\n" + "\n".join(status_lines)
+
     await message.reply(response_text, parse_mode=ParseMode.HTML)
 
-    # Удаляем исходное сообщение с командой
     with suppress(TelegramAPIError):
+
         await message.delete()
 
-# --- Команды для проверки состояния и информации ---
+@rp_router.message(
 
-@rp_router.message(F.text.lower().startswith(("моё хп", "мое хп", "мой хп", "/myhp")))
-async def handle_check_hp(message: types.Message):
-    """Показывает текущее HP и статус восстановления/кулдауна."""
+    F.text,
+
+    lambda msg: get_command_from_text(msg.text)[0] is not None
+
+)
+
+async def handle_rp_action_via_text(message: types.Message, bot: Bot, profile_manager: ProfileManager):
+
+    command_text = message.text
+
+    await _process_rp_action(message, bot, profile_manager, command_text)
+
+@rp_router.message(Command("rp"))
+
+async def handle_rp_action_via_command(message: types.Message, bot: Bot, profile_manager: ProfileManager):
+
+    command_payload = message.text[len("/rp"):].strip()
+
+    if not command_payload or get_command_from_text(command_payload)[0] is None:
+
+        await message.reply(
+
+            "⚠️ Укажите действие после <code>/rp</code>. Например: <code>/rp поцеловать</code>\n"
+
+            "И не забудьте ответить на сообщение цели или упомянуть её.\n"
+
+            "Список действий: /rp_commands", parse_mode=ParseMode.HTML
+
+        )
+
+        return
+
+    await _process_rp_action(message, bot, profile_manager, command_payload)
+
+@rp_router.message(F.text.lower().startswith((
+
+    "моё хп", "мое хп", "моё здоровье", "мое здоровье", "хп", "здоровье"
+
+)))
+
+@rp_router.message(Command("myhp", "hp"))
+
+async def cmd_check_self_hp(message: types.Message, bot: Bot, profile_manager: ProfileManager):
+
+    if not HAS_PROFILE_MANAGER:
+
+        await message.reply("⚠️ RP-модуль временно недоступен.")
+
+        return
+
+    if not message.from_user: return
+
     user = message.from_user
-    await db.ensure_user(user.id, user.username, user.first_name)
-    
-    stats = await db.get_rp_stats(user.id)
+
+    await check_and_notify_rp_state(user, bot, profile_manager)
+
+    stats = await profile_manager.get_rp_stats(user.id)
+
     current_hp = stats.get('hp', RPConfig.DEFAULT_HP)
+
     recovery_ts = stats.get('recovery_end_ts', 0)
+
     heal_cd_ts = stats.get('heal_cooldown_ts', 0)
+
     now = time.time()
-    
-    sender_name = await get_user_display_name(user)
-    response_text = f"{sender_name}, ваше HP: <b>{current_hp}/{RPConfig.MAX_HP}</b>"
 
-    # Проверка восстановления
-    remaining_recovery = recovery_ts - now
-    if remaining_recovery > 0:
-        time_str = format_timedelta(remaining_recovery)
-        response_text += f"\n<b style='color:orange;'>Восстановление после 0 HP:</b> {RPConfig.HP_RECOVERY_AMOUNT} HP через {time_str}."
-    elif current_hp <= 0: # Если HP все еще 0, но время вышло - восстанавливаем
-         recovered_hp = await update_hp_and_notify(message.bot, message.chat.id, user.id, RPConfig.HP_RECOVERY_AMOUNT)
-         await db.update_rp_stats(user.id, recovery_end_ts=0)
-         response_text = f"{sender_name}, ваше HP восстановлено до <b>{recovered_hp}/{RPConfig.MAX_HP}</b>!"
-         logger.info(f"User {user.id} HP recovered to {recovered_hp} on /myhp check.")
+    user_display_name = get_user_display_name(user)
 
-    # Проверка кулдауна лечения
-    remaining_heal_cd = heal_cd_ts - now
-    if remaining_heal_cd > 0:
-        time_str = format_timedelta(remaining_heal_cd)
-        response_text += f"\n<b style='color:blue;'>Кулдаун лечащих действий:</b> {time_str}."
+    response_lines = [f"{user_display_name}, ваше состояние:"]
 
-    await message.reply(response_text, parse_mode=ParseMode.HTML)
+    response_lines.append(f"❤️ Здоровье: <b>{current_hp}/{RPConfig.MAX_HP}</b>")
 
-@rp_router.message(Command("rp_commands"))
-@rp_router.message(F.text.lower().startswith(("список действий", "действия", "рп действия", "список рп")))
-async def handle_actions_list(message: types.Message):
-    """Показывает список всех RP-действий."""
-    # Проверка на нулевое HP здесь не нужна, это информационная команда
-    actions_list = "<b>📋 Доступные RP-действия:</b>\n\n"
-    for category, actions in RPActions.ALL_ACTIONS_LIST_BY_CATEGORY.items():
-        actions_list += f"<b>{category}:</b>\n"
-        # Делаем команды кликабельными (при ответе на сообщение)
-        actions_list += "\n".join(f" `/rp {action}`" for action in actions) # Добавляем префикс /rp
-        actions_list += "\n\n"
-    actions_list += "<i style='color:gray;'>Чтобы использовать: ответьте на сообщение пользователя и напишите команду (например: /rp поцеловать).</i>"
+    if current_hp <= RPConfig.MIN_HP and recovery_ts > now:
 
-    await message.reply(actions_list, parse_mode=ParseMode.HTML)
+        response_lines.append(
 
-# --- Дополнительные реакции (опционально) ---
+            f"😵 Вы без сознания. Восстановление через: {format_timedelta(recovery_ts - now)}"
 
-# @rp_router.message(F.text.lower().contains("заплакать")) # Убрал отдельный хендлер, т.к. "заплакать" теперь нейтральное действие
-# async def handle_cry(message: types.Message): ...
+        )
+
+    elif recovery_ts > 0 and recovery_ts <= now and current_hp <= RPConfig.MIN_HP:
+
+        response_lines.append(f"⏳ HP должно было восстановиться, попробуйте еще раз или подождите немного.")
+
+    if heal_cd_ts > now:
+
+        response_lines.append(f"🕒 Кулдаун лечащих действий: {format_timedelta(heal_cd_ts - now)}")
+
+    else:
+
+        response_lines.append("✅ Лечащие действия: готовы!")
+
+    await message.reply("\n".join(response_lines), parse_mode=ParseMode.HTML)
+
+@rp_router.message(Command("rp_commands", "rphelp"))
+
+@rp_router.message(F.text.lower().startswith(("список действий", "рп действия", "список рп", "команды рп")))
+
+async def cmd_show_rp_actions_list(message: types.Message):
+
+    response_parts = ["<b>📋 Доступные RP-действия:</b>\n"]
+
+    for category_name, actions in RPActions.ALL_ACTIONS_LIST_BY_CATEGORY.items():
+
+        response_parts.append(f"<b>{category_name}:</b>")
+
+        action_lines = [f"  • <code>{action}</code> (или <code>/rp {action}</code>)" for action in actions]
+
+        response_parts.append("\n".join(action_lines))
+
+        response_parts.append("")
+
+    response_parts.append(
+
+        "<i>Использование: ответьте на сообщение цели и напишите команду (<code>обнять</code>) "
+
+        "или используйте <code>/rp обнять</code>, также отвечая или упоминая цель (@ник).</i>"
+
+    )
+
+    await message.reply("\n".join(response_parts), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 @rp_router.message(F.text.lower().contains("спасибо"))
-async def handle_thanks(message: types.Message):
-    """Реагирует на благодарность."""
-    if await check_user_rp_state(message): return
+
+async def reaction_thanks(message: types.Message, bot: Bot, profile_manager: ProfileManager):
+
+    if not message.from_user: return
+
+    if await check_and_notify_rp_state(message.from_user, bot, profile_manager, message): return
+
     await message.reply("Всегда пожалуйста! 😊")
 
 @rp_router.message(F.text.lower().contains("люблю"))
-async def handle_love(message: types.Message):
-    """Реагирует на признание в любви."""
-    if await check_user_rp_state(message): return
-    await message.reply("Я тоже вас люблю! ❤️🤡") # Фирменный ответ :)
 
-# --- Фоновая задача для восстановления HP ---
-async def periodic_hp_recovery_task(bot: Bot):
-     """Периодически проверяет и восстанавливает HP пользователей, у которых оно было 0."""
-     logger.info("Periodic HP recovery task started.")
-     while True:
-         await asyncio.sleep(60) # Проверяем раз в минуту
-         now = time.time()
-         try:
-             async with aiosqlite.connect(db.DB_FILE) as conn:
-                 # Находим пользователей, у которых HP <= 0 и время восстановления прошло
-                 query = 'SELECT user_id, hp FROM rp_user_stats WHERE hp <= ? AND recovery_end_ts > 0 AND recovery_end_ts <= ?'
-                 async with conn.execute(query, (RPConfig.MIN_HP, now)) as cursor:
-                     users_to_recover = await cursor.fetchall()
+async def reaction_love(message: types.Message, bot: Bot, profile_manager: ProfileManager):
 
-                 if users_to_recover:
-                     logger.info(f"Found {len(users_to_recover)} users ready for HP recovery.")
-                     for user_id, current_hp in users_to_recover:
-                         # Восстанавливаем HP
-                         new_hp = min(RPConfig.MAX_HP, current_hp + RPConfig.HP_RECOVERY_AMOUNT)
-                         # Обновляем HP и сбрасываем таймер восстановления
-                         await conn.execute(
-                             'UPDATE rp_user_stats SET hp = ?, recovery_end_ts = 0 WHERE user_id = ?',
-                             (new_hp, user_id)
-                         )
-                         await conn.commit()
-                         logger.info(f"User {user_id} HP recovered from {current_hp} to {new_hp}.")
-                         
-                         # Отправляем уведомление в ЛС
-                         user_info = await db.get_user_info(user_id) # Получаем имя пользователя
-                         user_name = user_info['first_name'] if user_info else f"Пользователь {user_id}"
-                         try:
-                             await bot.send_message(
-                                 user_id,
-                                 f"✅ Ваше HP восстановлено до {new_hp}/{RPConfig.MAX_HP}! Вы снова в строю."
-                             )
-                         except TelegramAPIError as e:
-                             logger.warning(f"Could not send recovery notification to user {user_id}: {e.message}")
+    if not message.from_user: return
 
-         except Exception as e:
-             logger.error(f"Error in periodic_hp_recovery_task: {e}", exc_info=True)
+    if await check_and_notify_rp_state(message.from_user, bot, profile_manager, message): return
 
+    await message.reply("И я вас люблю! ❤️🤡")
 
-# ====================== НАСТРОЙКА ======================
-def setup_rp_handlers(dp):
-    """Добавляет RP-роутер в главный диспетчер."""
-    dp.include_router(rp_router)
-    logger.info("RP router included in the main dispatcher.")
-    return dp
+async def periodic_hp_recovery_task(bot: Bot, profile_manager: ProfileManager, db_module: Any):
 
-def setup_all_handlers(dp):
-    """Настраивает все хендлеры (RP и Статистику)."""
-    dp = setup_rp_handlers(dp)
-    logger.info("All handlers configured.")
-    return dp
+    if not HAS_PROFILE_MANAGER:
 
-# Добавляем префикс /rp для удобства использования команд в чате
-# Теперь можно писать /rp поцеловать @username
-@rp_router.message(Command("rp"))
-async def handle_rp_command_wrapper(message: types.Message):
-     """Обработчик для команд вида /rp <действие> [текст] @упоминание"""
-     if not message.reply_to_message:
-         # Если нет ответа, проверяем, есть ли упоминание в тексте команды
-         command_text = message.text[len("/rp"):].strip()
-         entities = message.entities or []
-         mentioned_users = [
-             entity.user for entity in entities 
-             if entity.type == types.MessageEntityType.MENTION or entity.type == types.MessageEntityType.TEXT_MENTION
-             if entity.user # Убедимся, что user есть (для text_mention)
-         ]
-         
-         if not mentioned_users:
-              await message.reply("⚠️ Используйте команду /rp <действие> [текст], отвечая на сообщение пользователя, или упомяните его (@username).")
-              return
-              
-         # Создаем "псевдо" ответное сообщение для совместимости с основным хендлером
-         pseudo_reply = message.model_copy() # Копируем структуру
-         pseudo_reply.reply_to_message = types.Message( # Создаем объект Reply
-              message_id=0, # Не важно
-              date=message.date,
-              chat=message.chat,
-              from_user=mentioned_users[0] # Берем первого упомянутого
-              # Остальные поля можно не заполнять
-         )
-         pseudo_reply.text = command_text # Текст без /rp
-         
-         # Вызываем основной обработчик
-         await handle_rp_action(pseudo_reply)
-         
-     else:
-          # Если есть ответ, просто убираем /rp и передаем дальше
-          message.text = message.text[len("/rp"):].strip()
-          await handle_rp_action(message)
+        logger.error("Periodic HP recovery task cannot start: ProfileManager is missing.")
+
+        return
+
+    logger.info("Periodic HP recovery task started.")
+
+    while True:
+
+        await asyncio.sleep(60)
+
+        now = time.time()
+
+        try:
+
+            if not hasattr(db_module, 'get_users_for_hp_recovery'):
+
+                logger.error("Periodic HP recovery: db_module.get_users_for_hp_recovery function is missing!")
+
+                continue
+
+            users_to_recover: List[Tuple[int, int]] = await db_module.get_users_for_hp_recovery(now, RPConfig.MIN_HP)
+
+            if users_to_recover:
+
+                logger.info(f"Periodic recovery: Found {len(users_to_recover)} users for HP recovery.")
+
+                for user_id, current_hp_val in users_to_recover:
+
+                    new_hp, _ = await _update_user_hp(profile_manager, user_id, RPConfig.HP_RECOVERY_AMOUNT)
+
+                    logger.info(f"Periodic recovery: User {user_id} HP auto-recovered from {current_hp_val} to {new_hp}.")
+
+                    try:
+
+                        await bot.send_message(
+
+                            user_id,
+
+                            f"✅ Ваше HP автоматически восстановлено до {new_hp}/{RPConfig.MAX_HP}! Вы снова в строю."
+
+                        )
+
+                    except TelegramAPIError as e:
+
+                        logger.warning(f"Periodic recovery: Could not send PM to user {user_id}: {e.message}")
+
+        except Exception as e:
+
+            logger.error(f"Error in periodic_hp_recovery_task: {e}", exc_info=True)
+
+def setup_rp_handlers(main_dp: Router, bot_instance: Bot, profile_manager_instance: ProfileManager, database_module: Any):
+
+    if not HAS_PROFILE_MANAGER:
+
+        logging.error("Not setting up RP handlers because ProfileManager is missing.")
+
+        return
+
+    main_dp.include_router(rp_router)
+
+    logger.info("RP router included and configured.")
+
+def setup_all_handlers(dp: Router, bot: Bot, profile_manager: ProfileManager, db_module: Any):
+
+    setup_rp_handlers(dp, bot, profile_manager, db_module)
+
+    try:
+
+        from group_stat import setup_stat_handlers as setup_gs_handlers
+
+        setup_gs_handlers(dp, bot=bot, profile_manager=profile_manager)
+
+        logger.info("Group_stat handlers also configured.")
+
+    except ImportError:
+
+        logger.warning("group_stat.setup_stat_handlers not found, skipping its setup.")
